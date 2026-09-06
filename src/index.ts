@@ -1,8 +1,8 @@
 import { Hono } from "hono";
-import agent from "@/routes/agent.route";
+import ai from "@/routes/ai.route";
 
 const app = new Hono();
 
-app.route("/agent", agent);
+app.route("/ai", ai);
 
 export default app;

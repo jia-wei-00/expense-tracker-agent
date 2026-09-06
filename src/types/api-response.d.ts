@@ -1,4 +1,4 @@
-import type { ContentfulStatusCode, StatusCode } from "hono/utils/http-status";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import z from "zod";
 
 export type ApiSuccessResponse<T> = {
@@ -8,13 +8,13 @@ export type ApiSuccessResponse<T> = {
 };
 
 export type SuccessOptions<T> = {
-  status?: StatusCode;
+  status?: ContentfulStatusCode;
   message?: string;
   data?: T;
 };
 
 export type ErrorResponse = {
-  status: ContentfulStatusCode;
+  status?: ContentfulStatusCode;
   title?: string;
   detail?: string;
   instance?: string;
