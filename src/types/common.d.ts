@@ -1,10 +1,14 @@
 import type { Context } from "hono";
 import type { ValidationTargets } from "hono";
 import type { SupabaseContext } from "@supabase/server";
+import type { Database } from "@/types/database";
+
+/** User-scoped Supabase client type, parameterized with the project schema. */
+export type TSupabaseClient = SupabaseContext<Database>["supabase"];
 
 // Variables populated by the `supabaseAuth` middleware.
 export type AuthVariables = {
-  supabaseContext: SupabaseContext;
+  supabaseContext: SupabaseContext<Database>;
   accessUser: {
     email: string;
     sub: string;

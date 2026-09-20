@@ -1,26 +1,21 @@
 import { errorResponse } from "@/libs/response";
+import { triageAgent } from "@/services/ai/agents/triage.agent";
 import { TAiPrompt } from "@/types/ai";
-import { ValidContext } from "@/types/common";
-import { createAgent } from "@/utils/model";
-import { createAiSdkUiMessageStreamResponse } from "@openai/agents-extensions/ai-sdk-ui";
+import type { ValidContext } from "@/types/common";
+import { createAgentUIStreamResponse } from "ai";
 
 export async function aiPrompt(c: ValidContext<TAiPrompt>) {
-  const {
-    req,
-    var: { supabaseContext },
-  } = c;
-  const input = req.valid("json");
-  const user = supabaseContext.userClaims?.email;
+  const { messages } = c.req.valid("json");
+  // const supabase = c.var.supabaseContext.supabase;
+
   try {
-    const result = await createAgent({
-      c,
-      input,
-      name: "Expense tracker agent",
-      instructions: `You are a friendly expense tracking assistant for ${user}. You need to help ${user} to manage their expenses in the app`,
-      tools: [],
+    const agent = triageAgent(c);
+    return createAgentUIStreamResponse({
+      agent,
+      uiMessages: messages,
     });
-    return createAiSdkUiMessageStreamResponse(result);
   } catch (error) {
+    console.error("aiPrompt failed:", error);
     return errorResponse(c);
   }
 }
