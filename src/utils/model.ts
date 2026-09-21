@@ -1,11 +1,13 @@
 import {
   getGeminiConfig,
+  getGroqConfig,
   getMercuryConfig,
   getNvidiaConfig,
 } from "@/constants/model-config";
 import { AppBindings } from "@/types/common";
 import { TSwitchProvider } from "@/types/utils/model";
 import { createGoogle } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 export const getModel = (props: TSwitchProvider) => {
@@ -19,15 +21,14 @@ export const getModel = (props: TSwitchProvider) => {
       return buildOpenAICompatible({ name: "mercury", env });
     case "nvidia":
       return buildOpenAICompatible({ name: "nvidia", env });
+    case "groq":
+      const { apiKey: groqKey, model: groqModel } = getGroqConfig(env);
+      return createGroq({ apiKey: groqKey })(groqModel);
     case "gemini":
     default:
-      return buildGemini(env);
+      const { apiKey, model } = getGeminiConfig(env);
+      return createGoogle({ apiKey })(model);
   }
-};
-
-const buildGemini = (env: AppBindings) => {
-  const { apiKey, model } = getGeminiConfig(env);
-  return createGoogle({ apiKey })(model);
 };
 
 const buildOpenAICompatible = ({

@@ -31,3 +31,12 @@ export const getEmbeddingConfig = (env: AppBindings) => ({
     "https://generativelanguage.googleapis.com/v1beta/openai/",
   model: env.EMBEDDING_MODEL || "gemini-embedding-2",
 });
+
+// GROQ
+export const getGroqConfig = (env: AppBindings) => ({
+  apiKey: env.GROQ_API_KEY,
+  baseURL:
+    env.GOOGLE_GENERATIVE_BASE_URL ||
+    "https://generativelanguage.googleapis.com/v1beta/openai/",
+  model: env.GROQ_MODEL || "qwen/qwen3.8-27b",
+});
