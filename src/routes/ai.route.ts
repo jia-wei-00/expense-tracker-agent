@@ -5,6 +5,7 @@ import { SESSION_HEADER } from "@/constants/ai";
 import zValidator from "@/middlewares/zod.validator";
 import { approvalSchema, pendingQuerySchema, promptSchema } from "@/schemas/ai";
 import { aiPrompt } from "@/services/ai";
+import { braintrust } from "@/middlewares/braintrust.middleware";
 
 const app = new Hono();
 
@@ -19,6 +20,7 @@ app.use(
   }),
 );
 app.use("*", withSupabase({ auth: "user" }));
+app.use("*", braintrust);
 app.post("/", zValidator("json", promptSchema), aiPrompt);
 
 export default app;

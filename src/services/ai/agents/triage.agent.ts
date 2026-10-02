@@ -1,10 +1,11 @@
 import type { TContext } from "@/types/common";
 import { getModel } from "@/utils/model";
-import { ToolLoopAgent } from "ai";
+import * as ai from "ai";
 import { expenseTools } from "@/services/ai/tools/expense.tools";
 import { getDateTimeNow } from "@/utils/date";
+import { wrapAISDK } from "braintrust";
 
-export const TRIAGE_AGENT_NAME = "Expense tracker";
+const { ToolLoopAgent } = wrapAISDK(ai);
 
 /**
  * Entry-point agent. It routes expense-related requests to the expense
@@ -21,7 +22,7 @@ export const triageAgent = (c: TContext) => {
     Rules:
     - Hand off to the "Expense agent" for anything about expenses, income, categories, spending summaries or totals.
     - For greetings or small talk, reply briefly and offer to help track expenses.
-    - Never invent financial data and never claim an action succeeded without a tool result.`,
+    - Never invent financial data and never claim an action succeeded without a tool result.`.trim(),
     tools: expenseTools(c),
   });
   return agent;
