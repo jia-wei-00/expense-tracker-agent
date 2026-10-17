@@ -45,7 +45,7 @@ flowchart LR
         Chat["aiChat"]
         Scan["aiScan"]
         Hist["chat-history.ts<br/>(sessions, approvals)"]
-        Agent["triageAgent<br/>(ToolLoopAgent)"]
+        Agent["chatAgent<br/>(ToolLoopAgent)"]
         Tools["expense tools"]
         MW --> Val --> Chat
         Val --> Scan
@@ -97,7 +97,7 @@ flowchart TD
     F3 -- "yes" --> F4["Conditional update:<br/>approval-responded<br/>(single use)"]
     F4 --> R
 
-    R["Run triageAgent with the history"] --> S["Stream UI messages to the client"]
+    R["Run chatAgent with the history"] --> S["Stream UI messages to the client"]
     S --> G{"Agent step result"}
     G -- "read tool" --> H["Execute immediately<br/>and loop back to the model"]
     H --> G
@@ -260,7 +260,8 @@ src/
 ├── services/ai/
 │   ├── index.ts                 aiChat / aiScan handlers
 │   ├── chat-history.ts          sessions, load/save messages, approval resolution
-│   ├── agents/                  triage.agent.ts (used), expense.agent.ts (unused)
+│   ├── agents/chat.agent.ts     the chat agent (ToolLoopAgent)
+│   ├── prompts/chat.prompt.ts   chat agent instructions
 │   └── tools/expense.tools.ts   zod-typed tools + getCategories
 ├── schemas/                     zod schemas for requests and tools
 ├── constants/                   AI limits, cache TTLs, HTTP status, model config

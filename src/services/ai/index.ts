@@ -1,7 +1,7 @@
 import { HTTP_STATUS } from "@/constants/error";
 import { errorResponse, successResponse } from "@/libs/response";
 import { addExpenseSchema } from "@/schemas/expense";
-import { triageAgent } from "@/services/ai/agents/triage.agent";
+import { chatAgent } from "@/services/ai/agents/chat.agent";
 import {
   ChatError,
   prepareTurn,
@@ -39,7 +39,7 @@ export async function aiChat(c: ValidContext<TAiChat>) {
   const { sessionId } = body;
 
   try {
-    const agent = triageAgent(c);
+    const agent = chatAgent(c);
     const messages = await prepareTurn(
       supabase,
       supabaseAdmin,

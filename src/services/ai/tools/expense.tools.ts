@@ -25,29 +25,6 @@ const toMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 /**
- * Surfaces validation failures to the model so it can correct the arguments
- * and retry within the same run, instead of the run hard-failing.
- *
- * Tools declare an `outputSchema`, so this must return the same envelope shape
- * (`{ ok, error }`) rather than a bare string, or the SDK rejects it.
- */
-const toolErrorFunction = (_context: unknown, error: unknown) => {
-  const original = (error as { originalError?: unknown } | undefined)
-    ?.originalError;
-  const detail =
-    original instanceof Error
-      ? original.message
-      : error instanceof Error
-        ? error.message
-        : String(error);
-
-  return {
-    ok: false,
-    error: `Invalid tool arguments: ${detail}. Fix the arguments and call the tool again.`,
-  };
-};
-
-/**
  * The user's expense/income categories, read through the per-user KV cache.
  * Throws when unauthenticated or on a query error.
  */

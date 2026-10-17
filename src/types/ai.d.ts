@@ -1,5 +1,5 @@
 import { chatMetadataSchema, chatSchema, scanSchema } from "@/schemas/ai";
-import type { triageAgent } from "@/services/ai/agents/triage.agent";
+import type { chatAgent } from "@/services/ai/agents/chat.agent";
 import type { InferAgentUIMessage } from "ai";
 import { z } from "zod";
 
@@ -10,10 +10,10 @@ export type TApproval = Extract<TAiChat, { approvals: unknown }>["approvals"][nu
 export type TChatMessageMetadata = z.infer<typeof chatMetadataSchema>;
 
 /** Tools of the chat agent; stored tool parts are validated against these. */
-export type TChatTools = ReturnType<typeof triageAgent>["tools"];
+export type TChatTools = ReturnType<typeof chatAgent>["tools"];
 
 /** A stored chat message, typed by the chat agent's tools. */
 export type TChatMessage = InferAgentUIMessage<
-  ReturnType<typeof triageAgent>,
+  ReturnType<typeof chatAgent>,
   TChatMessageMetadata
 >;
