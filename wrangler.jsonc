@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "expense-tracker-hono",
+  "name": "expense-tracker-agent",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
@@ -12,8 +12,8 @@
   "kv_namespaces": [
     {
       "binding": "CACHE",
-      "id": "00000000000000000000000000000000"
-    }
+      "id": "00000000000000000000000000000000",
+    },
   ],
   // "r2_buckets": [
   //   {
