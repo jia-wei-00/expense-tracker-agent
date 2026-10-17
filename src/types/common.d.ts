@@ -6,6 +6,9 @@ import type { Database } from "@/types/database";
 /** User-scoped Supabase client type, parameterized with the project schema. */
 export type TSupabaseClient = SupabaseContext<Database>["supabase"];
 
+/** Service-role client; bypasses RLS, so callers must check ownership first. */
+export type TSupabaseAdminClient = SupabaseContext<Database>["supabaseAdmin"];
+
 // Variables populated by the `supabaseAuth` middleware.
 export type AuthVariables = {
   supabaseContext: SupabaseContext<Database>;

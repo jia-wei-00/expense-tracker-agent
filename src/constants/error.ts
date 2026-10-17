@@ -17,3 +17,8 @@ export const HTTP_STATUS = {
 
   INTERNAL_SERVER_ERROR: 500,
 } as const satisfies Record<string, StatusCode>;
+
+/** Postgres SQLSTATE codes surfaced as `error.code` by supabase-js. */
+export const PG_ERROR_CODE = {
+  UNIQUE_VIOLATION: "23505",
+} as const;

@@ -84,6 +84,16 @@ export const addExpenseSchema = z.object({
   ),
 });
 
+export const addExpensesSchema = z.object({
+  expenses: z
+    .array(addExpenseSchema)
+    .min(1)
+    .max(50)
+    .describe(
+      "Every record the user asked to add. Pass them all in one call (one approval for all).",
+    ),
+});
+
 export const updateExpenseSchema = z.object({
   id: z
     .number()
@@ -98,11 +108,13 @@ export const updateExpenseSchema = z.object({
 });
 
 export const deleteExpenseSchema = z.object({
-  id: z
-    .number()
-    .int()
-    .positive()
-    .describe("The expense record id to delete."),
+  ids: z
+    .array(z.number().int().positive())
+    .min(1)
+    .max(50)
+    .describe(
+      "Ids of every expense record to delete. Pass all records the user asked to delete in one call.",
+    ),
 });
 
 /**
@@ -167,8 +179,8 @@ export const getExpenseOutputSchema = toolResult(expenseWithCategorySchema);
 
 export const getExpenseSummaryOutputSchema = toolResult(expenseSummarySchema);
 
-export const addExpenseOutputSchema = toolResult(expenseRecordSchema);
+export const addExpenseOutputSchema = toolResult(z.array(expenseRecordSchema));
 
 export const updateExpenseOutputSchema = toolResult(expenseRecordSchema);
 
-export const deleteExpenseOutputSchema = toolResult(deletedRecordSchema);
+export const deleteExpenseOutputSchema = toolResult(z.array(deletedRecordSchema));

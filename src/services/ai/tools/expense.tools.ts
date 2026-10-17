@@ -2,7 +2,7 @@ import { CACHE_TTL } from "@/constants/cache";
 import { cacheKey, getOrSet } from "@/libs/cache";
 import {
   addExpenseOutputSchema,
-  addExpenseSchema,
+  addExpensesSchema,
   deleteExpenseOutputSchema,
   deleteExpenseSchema,
   getExpenseOutputSchema,
@@ -48,6 +48,31 @@ const toolErrorFunction = (_context: unknown, error: unknown) => {
 };
 
 /**
+ * The user's expense/income categories, read through the per-user KV cache.
+ * Throws when unauthenticated or on a query error.
+ */
+export const getCategories = (c: TContext) => {
+  const supabase = c.var.supabaseContext.supabase;
+  const userId = c.var.supabaseContext.userClaims?.id;
+  if (!userId) throw new Error("Not authenticated");
+
+  return getOrSet(
+    c.env.CACHE,
+    cacheKey("categories", userId),
+    CACHE_TTL.CATEGORIES,
+    async () => {
+      const { data, error } = await supabase
+        .from("expense_category")
+        .select("id, name, is_expense")
+        .order("name");
+
+      if (error) throw new Error(error.message);
+      return data;
+    },
+  );
+};
+
+/**
  * Expense tools scoped to the authenticated user.
  *
  * Every query runs through the user-scoped Supabase client so RLS enforces
@@ -57,7 +82,6 @@ const toolErrorFunction = (_context: unknown, error: unknown) => {
 export const expenseTools = (c: TContext) => {
   const supabase = c.var.supabaseContext.supabase;
   const userId = c.var.supabaseContext.userClaims?.id;
-  const kv = c.env.CACHE;
 
   return {
     listExpensesCategory: tool({
@@ -67,25 +91,8 @@ export const expenseTools = (c: TContext) => {
       inputSchema: listCategoriesSchema,
       outputSchema: listCategoriesOutputSchema,
       execute: async () => {
-        if (!userId) return { ok: false, error: "Not authenticated" };
-
         try {
-          const data = await getOrSet(
-            kv,
-            cacheKey("categories", userId),
-            CACHE_TTL.CATEGORIES,
-            async () => {
-              const { data, error } = await supabase
-                .from("expense_category")
-                .select("id, name, is_expense")
-                .order("name");
-
-              if (error) throw new Error(error.message);
-              return data;
-            },
-          );
-
-          return { ok: true, data };
+          return { ok: true, data: await getCategories(c) };
         } catch (error) {
           return { ok: false, error: toMessage(error) };
         }
@@ -170,16 +177,16 @@ export const expenseTools = (c: TContext) => {
     addExpense: tool({
       metadata: { name: "add_expense" },
       description:
-        "Create an expense or income record. Requires human approval before it is written.",
-      inputSchema: addExpenseSchema,
+        "Create one or more expense/income records in a single call (one approval for all). Returns the created records. Requires human approval before it is written.",
+      inputSchema: addExpensesSchema,
       outputSchema: addExpenseOutputSchema,
       needsApproval: true,
-      execute: async ({ name, amount, category, is_expense, spend_date }) => {
+      execute: async ({ expenses }) => {
+        // One bulk insert: PostgREST writes the whole batch or none of it.
         const { data, error } = await supabase
           .from("expense")
-          .insert({ name, amount, category, is_expense, spend_date })
-          .select("id, name, amount, spend_date, is_expense, category")
-          .single();
+          .insert(expenses)
+          .select("id, name, amount, spend_date, is_expense, category");
 
         if (error) return { ok: false, error: error.message };
         return { ok: true, data };
@@ -230,22 +237,28 @@ export const expenseTools = (c: TContext) => {
     deleteExpense: tool({
       metadata: { name: "delete_expense" },
       description:
-        "Delete an expense/income record by id. Requires human approval before it is written.",
+        "Delete one or more expense/income records by id in a single call (one approval for all). Returns the deleted ids; ids that were not found are listed in `error`. Requires human approval before it is written.",
       inputSchema: deleteExpenseSchema,
       outputSchema: deleteExpenseOutputSchema,
       needsApproval: true,
-      execute: async ({ id }) => {
+      execute: async ({ ids }) => {
         const { data, error } = await supabase
           .from("expense")
           .delete()
-          .eq("id", id)
-          .select("id")
-          .maybeSingle();
+          .in("id", ids)
+          .select("id");
 
         if (error) return { ok: false, error: error.message };
-        if (!data)
-          return { ok: false, error: `No expense found with id ${id}` };
-        return { ok: true, data };
+
+        const missing = ids.filter((id) => !data.some((row) => row.id === id));
+        if (data.length === 0) {
+          return { ok: false, error: `No expenses found with ids ${ids.join(", ")}` };
+        }
+        return {
+          ok: true,
+          data,
+          ...(missing.length > 0 && { error: `Not found: ${missing.join(", ")}` }),
+        };
       },
     }),
   };

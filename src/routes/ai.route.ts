@@ -1,10 +1,9 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { withSupabase } from "@supabase/server/adapters/hono";
-import { SESSION_HEADER } from "@/constants/ai";
 import zValidator from "@/middlewares/zod.validator";
-import { approvalSchema, pendingQuerySchema, promptSchema } from "@/schemas/ai";
-import { aiPrompt } from "@/services/ai";
+import { chatSchema, scanSchema } from "@/schemas/ai";
+import { aiChat, aiScan } from "@/services/ai";
 import { braintrust } from "@/middlewares/braintrust.middleware";
 
 const app = new Hono();
@@ -16,11 +15,11 @@ app.use(
     origin: (origin, c) => c.env.CORS_ORIGIN || origin,
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "OPTIONS"],
-    exposeHeaders: [SESSION_HEADER],
   }),
 );
 app.use("*", withSupabase({ auth: "user" }));
 app.use("*", braintrust);
-app.post("/", zValidator("json", promptSchema), aiPrompt);
+app.post("/chat", zValidator("json", chatSchema), aiChat);
+app.post("/scan", zValidator("json", scanSchema), aiScan);
 
 export default app;

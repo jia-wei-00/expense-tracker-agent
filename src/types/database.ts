@@ -53,6 +53,7 @@ export type Database = {
           id: number;
           session_id: string;
           type: string;
+          ui_id: string;
         };
         Insert: {
           created_at?: string;
@@ -60,6 +61,7 @@ export type Database = {
           id?: never;
           session_id: string;
           type: string;
+          ui_id?: string;
         };
         Update: {
           created_at?: string;
@@ -67,6 +69,7 @@ export type Database = {
           id?: never;
           session_id?: string;
           type?: string;
+          ui_id?: string;
         };
         Relationships: [
           {
