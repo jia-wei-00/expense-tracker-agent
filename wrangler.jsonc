@@ -4,10 +4,46 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
+  "upload_source_maps": true,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "invocation_logs": true,
+      "head_sampling_rate": 1,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+    },
+  },
   "kv_namespaces": [
     {
       "binding": "CACHE",
       "id": "c09d3be037d540689db87075bf695850",
     },
   ],
+  // Non-secret config. Secrets are set with `wrangler secret put` (prod) and
+  // `.dev.vars` (local); `.dev.vars` also overrides these values locally.
+  "vars": {
+    // Chat agent model: AI_PROVIDER, retried on AI_FALLBACK_PROVIDER when it fails.
+    "AI_PROVIDER": "gemini",
+    "AI_FALLBACK_PROVIDER": "groq",
+    "SUPABASE_URL": "https://ydpvxgjfcftaipcpirph.supabase.co",
+    "SUPABASE_JWKS_URL": "https://ydpvxgjfcftaipcpirph.supabase.co/auth/v1/.well-known/jwks.json",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_GY_OEyl69swkAQyWNFJwVg_1jW3vsSn",
+    "GOOGLE_GENERATIVE_AI_MODEL": "gemini-3.5-flash-lite",
+    "GOOGLE_GENERATIVE_BASE_URL": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "MERCURY_BASE_URL": "https://api.inceptionlabs.ai/v1",
+    "MERCURY_MODEL": "mercury-2",
+    "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1",
+    "NVIDIA_MODEL": "nvidia/nemotron-3-ultra-550b-a55b",
+    "GROQ_MODEL": "qwen/qwen3.8-27b",
+    "EMBEDDING_MODEL": "gemini-embedding-2",
+    "FIREBASE_AUTH_DOMAIN": "portfoli-website-ab255.firebaseapp.com",
+    "FIREBASE_PROJECT_ID": "portfoli-website-ab255",
+    "FIREBASE_STORAGE_BUCKET": "portfoli-website-ab255.appspot.com",
+    "FIREBASE_MESSAGING_SENDER_ID": "716340810052",
+    "FIREBASE_APP_ID": "1:716340810052:web:66e59a75109531ba8e4711",
+    "TEAM_DOMAIN": "https://leongjw98.cloudflareaccess.com",
+  },
 }
