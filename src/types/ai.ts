@@ -1,7 +1,7 @@
-import { chatMetadataSchema, chatSchema, scanSchema } from "@/schemas/ai";
+import type { chatMetadataSchema, chatSchema, scanSchema } from "@/schemas/ai";
 import type { chatAgent } from "@/services/ai/agents/chat.agent";
 import type { InferAgentUIMessage } from "ai";
-import { z } from "zod";
+import type { z } from "zod";
 
 export type TAiChat = z.infer<typeof chatSchema>;
 export type TAiScan = z.infer<typeof scanSchema>;
@@ -17,3 +17,7 @@ export type TChatMessage = InferAgentUIMessage<
   ReturnType<typeof chatAgent>,
   TChatMessageMetadata
 >;
+
+export type TChatMessagePart = TChatMessage["parts"][number];
+export type TToolPart = Extract<TChatMessagePart, { toolCallId: string }>;
+export type TPendingToolPart = Extract<TToolPart, { state: "approval-requested" }>;

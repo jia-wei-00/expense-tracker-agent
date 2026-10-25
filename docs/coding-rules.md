@@ -53,24 +53,16 @@ These are what `typecheck` / `lint` report today (2026-10-18). Fix each one when
 - `src/types/utils/model.d.ts:32`: `RunState<any, any>`.
 
 ### Types
-- `src/types/*.d.ts` (`ai`, `common`, `api-response`, `validation`, `utils/model`) should be `.ts` files.
+- `src/types/*.d.ts` (`common`, `api-response`, `validation`, `utils/model`) should be `.ts` files.
 - `src/types/utils/model.d.ts:1-6` imports `@openai/agents`, which isn't installed, so everything built on it is `any`. Its agent types (`TInputType`, `TBuildAgent`, `TCreateAgent`, `TRunAgent`, `TResumeAgent`) are unused; delete them and rewrite `TSwitchProvider` as `{ c; provider?; fallback? }`.
-- `src/services/ai/chat-history.ts:33-35`: local `TPart`, `TToolPart`, `TPendingToolPart`. Move them to `src/types/ai.ts`.
-- `src/types/ai.d.ts:1,4`, `src/utils/model.ts:7-14`: value imports used only as types. Use `import type`. Once `utils/model.ts` is fixed, add `"verbatimModuleSyntax": true` to `tsconfig.json`. Turning it on now breaks `wrangler deploy`: esbuild then keeps the import of `@/types/utils/model`, a `.d.ts` with no runtime file.
+- `src/utils/model.ts:7-14`: value imports used only as types. Use `import type`. Once `utils/model.ts` is fixed, add `"verbatimModuleSyntax": true` to `tsconfig.json`. Turning it on now breaks `wrangler deploy`: esbuild then keeps the import of `@/types/utils/model`, a `.d.ts` with no runtime file.
 - `src/types/api-response.d.ts:2`: unused `zod` import. `src/types/validation.d.ts:1`: `ValidationErrorItem` is unused.
 - Names without the `T` prefix: `AuthVariables`, `ValidContext`, `AppBindings` (`common.d.ts`); `ApiSuccessResponse`, `SuccessOptions`, `ErrorResponse` (`api-response.d.ts`); `ValidationErrorItem`. `ICommonContext` is an `interface` with an `I` prefix: make it `type TAppEnv`.
 - `src/constants/model-config.ts:7-41`: wrangler types each var as its literal value, so every `env.X || "default"` fallback is dead code to the compiler. Read optional config through a schema or drop the fallback.
 
 ### Size
-- `src/services/ai/chat-history.ts`: 316 lines, over the 300 limit. Split into `src/services/ai/chat/`:
-  - `chat.error.ts`: `ChatError`
-  - `turn.service.ts`: `prepareTurn`
-  - `session.service.ts`: `sessionExists`, `ensureSession`, `deriveTitle`
-  - `message.service.ts`: `loadMessages`, `toRow`, `appendMessage`, `saveMessage`
-  - `approval.service.ts`: `isPending`, `pendingApprovals`, `resolvePending`, `applyApprovals`, `supersedeApprovals`. `REJECTED_REASON` moves to `constants/ai.ts`.
-- `applyApprovals` (`chat-history.ts:218`): 56 lines. Move the answer checks into an `assertDecisions(...)` helper.
 - `src/services/ai/tools/expense.tools.ts`: 242 lines; `expenseTools` is 184. Use one factory file per tool (`list-categories.tool.ts`, `list-expenses.tool.ts`, `get-expense.tool.ts`, `get-expense-summary.tool.ts`, `add-expense.tool.ts`, `update-expense.tool.ts`, `delete-expense.tool.ts`). `expense.tools.ts` keeps only the map, with the same keys. `getCategories` moves to `src/services/expense/category.service.ts`; `toMessage` moves to `src/utils/error.ts`.
-- `aiChat` (`src/services/ai/index.ts:36`): 54 lines.
+- `aiChat` (`src/services/ai/index.ts:34`): 54 lines.
 
 ### Layers and naming
 - `src/services/ai/index.ts` builds HTTP responses (imports `libs/response`) and is a barrel file. Move `aiChat` / `aiScan` to `src/handlers/ai.handler.ts`, and the inline scan prompt to `prompts/scan.prompt.ts`.

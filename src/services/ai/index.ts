@@ -2,11 +2,9 @@ import { HTTP_STATUS } from "@/constants/error";
 import { errorResponse, successResponse } from "@/libs/response";
 import { addExpenseSchema } from "@/schemas/expense";
 import { chatAgent } from "@/services/ai/agents/chat.agent";
-import {
-  ChatError,
-  prepareTurn,
-  saveMessage,
-} from "@/services/ai/chat-history";
+import { ChatError } from "@/services/ai/chat/chat.error";
+import { saveMessage } from "@/services/ai/chat/message.service";
+import { prepareTurn } from "@/services/ai/chat/turn.service";
 import { getCategories } from "@/services/ai/tools/expense.tools";
 import type { TAiChat, TAiScan } from "@/types/ai";
 import type { ValidContext } from "@/types/common";
