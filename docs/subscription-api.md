@@ -9,9 +9,9 @@ owns the subscription state: a RevenueCat webhook writes `user_profile`, the
 | Plus | RM20 | RM200 | `plus` |
 | Pro | RM50 | RM500 | `pro` |
 
-Free users have no AI access and keep only the last 2 months of expenses (see
-**Retention**). The Pro plan offers a store free trial; the store decides
-eligibility.
+Free users have no AI access and keep their data on the device only; cloud
+storage and sync start with a paid plan (see **Retention**). The Pro plan offers
+a store free trial; the store decides eligibility.
 
 ## Client flow
 
@@ -101,13 +101,17 @@ one.
 A downgrade applies the lower limit immediately; an upgrade applies the higher
 limit immediately and keeps this month's counts.
 
-## Retention (free users)
+## Retention (lapsed subscribers)
 
-Every day at 05:00 Asia/Kuala_Lumpur, `expense` rows whose `spend_date` is
-older than 2 calendar months are deleted for users with no active plan
-(including users whose plan ended more than 7 days ago). Deletion is permanent;
-re-subscribing does not restore rows. Budgets, recurring expenses, loans and
-chat history are not affected.
+Free users store everything on the device and have no cloud rows. When a plan
+gains entitlement the app uploads its local rows through the
+`import_local_data(payload jsonb)` RPC (idempotent on each table's
+`client_id`). Every day at 05:00 Asia/Kuala_Lumpur,
+`purge_lapsed_user_data()` deletes all data (expenses, categories, budgets,
+loans, recurring expenses, chat history, chat audio) of users whose plan and
+billing grace ended more than 90 days ago. `user_profile` (keeps
+`trial_used`) and `whatsapp_users` are not deleted. Re-subscribing within
+the window keeps the cloud copy; after it, the app re-uploads from the device.
 
 ## Backend reference
 
