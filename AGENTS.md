@@ -16,7 +16,9 @@ No test script is configured. Existing code still has known lint/typecheck failu
 ## Structure
 
 - `src/index.ts` — entrypoint; the Hono app is mounted here. Add routes via `app.route(path, router)`.
-- `src/routes/*.route.ts` — route modules. `ai.route.ts` exposes `POST /ai/chat` and `POST /ai/scan`.
+- `src/routes/*.route.ts` — route modules. `ai.route.ts` exposes `POST /ai/chat` and `POST /ai/scan` (user JWT via `withSupabase({ auth: "user" })`). `webhooks.route.ts` exposes `POST /webhooks/revenuecat` (no user JWT; `withSupabase({ auth: "none" })` for the admin client, `revenuecat-auth.middleware.ts` checks the shared secret).
+- `src/handlers/*.handler.ts` — read the validated request, call services, build the response. `webhook.handler.ts` acknowledges every RevenueCat outcome with 200.
+- `src/services/subscription/` — `revenuecat.service.ts` maps a webhook event to the `apply_subscription_event` / `transfer_subscription` RPCs; `usage.service.ts` (`consumeAiUsage`) spends one unit of the monthly AI quota or throws the 402/429 `ChatError`.
 - `src/services/ai/` — agent orchestration (Vercel AI SDK `ToolLoopAgent`, wrapped with Braintrust's `wrapAISDK`):
   - `agents/chat.agent.ts` — the chat agent, wired with `tools/expense.tools.ts`; caps runs at `AGENT_MAX_STEPS`.
   - `prompts/*.prompt.ts` — agent instructions as typed functions (e.g. `chatInstructions({ now })`). Keep rules here, not in the agent wiring.
@@ -25,10 +27,20 @@ No test script is configured. Existing code still has known lint/typecheck failu
   - `index.ts` — `aiChat` / `aiScan`.
 - `src/utils/model.ts` — `getModel({ c, provider, fallback? })` returns an AI SDK language model (Gemini via `@ai-sdk/google`, Groq via `@ai-sdk/groq`, Mercury/NVIDIA via `@ai-sdk/openai-compatible`). With `fallback`, a call that fails before responding is retried on the fallback provider (mid-stream errors are not). Omitting `provider` reads `AI_PROVIDER` / `AI_FALLBACK_PROVIDER` from `wrangler.jsonc` vars — the chat agent does this; `aiScan` pins Gemini (image input).
 - `src/libs/cache.ts` — KV read-through helper. KV is eventually consistent: only cache stable data (currently the per-user category list). Never cache HITL state or balances.
-- `src/constants/` — shared values: `ai.ts` (history limit, agent step limit, approval TTL, title length, role → `chat_message.type`), `cache.ts` (KV TTLs), `error.ts`, `model-config.ts`.
+- `src/constants/` — shared values: `ai.ts` (history limit, agent step limit, approval TTL, title length, role → `chat_message.type`), `cache.ts` (KV TTLs), `error.ts`, `model-config.ts`, `subscription.ts` (`AI_LIMITS` per tier, RevenueCat event flags).
 - `src/types/` — shared types. `src/types/database.ts` is generated from the Supabase schema; `TSupabaseClient` is the user-scoped client type, `TSupabaseAdminClient` the service-role one.
 - `migrations/` — SQL migrations for the shared Supabase project (applied via the Supabase MCP/dashboard; there is no local Supabase CLI project here).
-- `docs/chat-api.md` — client contract for the chat endpoints.
+- `docs/chat-api.md` — client contract for the chat endpoints. `docs/subscription-api.md` — plans, limits, what clients read, retention.
+
+## Subscriptions & AI quota
+
+- `public.user_profile` (one row per user; missing row = free) is the source of truth for the tier, written only by SECURITY DEFINER RPCs: the RevenueCat webhook (service role) and `set_push_token` / `clear_push_token` (`auth.uid()`). Clients read it under RLS. Never use `auth.users.app_metadata` for the tier (stale until the JWT refreshes) and never cache the tier in KV.
+- Tier comes from `event.entitlement_ids` (`pro` over `plus`). "Active" is `user_entitlement.entitled_until > now()` evaluated in SQL, never the `tier` column alone. Duplicate and out-of-order webhook deliveries are handled inside `apply_subscription_event` (`event.id` + `event_timestamp_ms`); the Worker just maps and acks.
+- `consume_ai_usage(kind)` checks the tier and increments the Asia/Kuala_Lumpur monthly counter in one statement. `prepareTurn` calls it for a new chat message after loading history and before any write (so a 402/429 leaves no session or message behind); `aiScan` calls it before `generateText`. Approval continuations are never counted. Limits live in `src/constants/subscription.ts` and are passed into the RPC.
+- The webhook acks (200) every outcome it understands — `applied`, `duplicate`, `stale`, `unknown_user` (audit row kept with the raw `app_user_id`), `ignored_environment`, `ignored_type` — and returns 500 only for unexpected errors or a known event type whose payload fails validation, so RevenueCat retries instead of losing a purchase.
+- `whatsapp_users.push_token` is still dual-written (`20261026000300`) because `expense-tracker-ai-worker` reads it for pushes; apply `20261101000000_drop_whatsapp_push_columns.sql` only after that worker reads `user_profile`.
+- Free users' `expense` rows older than 2 months are hard-deleted daily by `purge_free_user_expenses()` (pg_cron, 7-day post-expiry grace). The same job prunes `revenuecat_event` at 90 days.
+- Nullable RPC params are trailing `default null` in SQL so the generated types make them optional: pass `undefined`, not `null`.
 
 ## Chat sessions & human-in-the-loop
 

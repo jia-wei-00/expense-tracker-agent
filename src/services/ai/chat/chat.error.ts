@@ -6,6 +6,8 @@ export class ChatError extends Error {
     readonly status: ContentfulStatusCode,
     readonly title: string,
     readonly detail?: string,
+    /** RFC 9457 extension members, e.g. quota details on a 429. */
+    readonly extensions?: Record<string, string | number | boolean>,
   ) {
     super(title);
   }

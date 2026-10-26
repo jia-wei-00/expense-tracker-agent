@@ -9,8 +9,8 @@ export type TSupabaseClient = SupabaseContext<Database>["supabase"];
 /** Service-role client; bypasses RLS, so callers must check ownership first. */
 export type TSupabaseAdminClient = SupabaseContext<Database>["supabaseAdmin"];
 
-// Variables populated by the `supabaseAuth` middleware.
-export type AuthVariables = {
+// Variables populated by the `withSupabase` middleware.
+export type TAuthVariables = {
   supabaseContext: SupabaseContext<Database>;
   accessUser: {
     email: string;
@@ -18,22 +18,19 @@ export type AuthVariables = {
   };
 };
 
-export type ValidContext<
+export type TValidContext<
   T,
   Target extends keyof ValidationTargets = "json" | "query",
-> = Context<
-  ICommonContext,
-  string,
-  { in: Record<Target, T>; out: Record<Target, T> }
->;
+> = Context<TAppEnv, string, { in: Record<Target, T>; out: Record<Target, T> }>;
 
-export type TContext = Context<ICommonContext>;
+export type TContext = Context<TAppEnv>;
 
-export interface ICommonContext {
-  Bindings: AppBindings;
-  Variables: AuthVariables;
-}
+/** Hono env for every app and middleware in this Worker. */
+export type TAppEnv = {
+  Bindings: TAppBindings;
+  Variables: TAuthVariables;
+};
 
-export type AppBindings = Omit<CloudflareBindings, "VECTORIZE"> & {
+export type TAppBindings = Omit<CloudflareBindings, "VECTORIZE"> & {
   VECTORIZE: Vectorize;
 };

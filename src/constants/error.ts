@@ -8,6 +8,7 @@ export const HTTP_STATUS = {
 
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
+  PAYMENT_REQUIRED: 402,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
@@ -20,5 +21,6 @@ export const HTTP_STATUS = {
 
 /** Postgres SQLSTATE codes surfaced as `error.code` by supabase-js. */
 export const PG_ERROR_CODE = {
+  FOREIGN_KEY_VIOLATION: "23503",
   UNIQUE_VIOLATION: "23505",
 } as const;

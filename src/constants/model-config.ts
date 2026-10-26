@@ -1,7 +1,7 @@
-import type { AppBindings } from "@/types/common";
+import type { TAppBindings } from "@/types/common";
 
 // GEMINI
-export const getGeminiConfig = (env: AppBindings) => ({
+export const getGeminiConfig = (env: TAppBindings) => ({
   apiKey: env.GEMINI_API_KEY,
   baseURL:
     env.GOOGLE_GENERATIVE_BASE_URL ||
@@ -10,21 +10,21 @@ export const getGeminiConfig = (env: AppBindings) => ({
 });
 
 // MERCURY
-export const getMercuryConfig = (env: AppBindings) => ({
+export const getMercuryConfig = (env: TAppBindings) => ({
   apiKey: env.MERCURY_API_KEY,
   baseURL: env.MERCURY_BASE_URL || "https://api.inceptionlabs.ai/v1",
   model: env.MERCURY_MODEL || "mercury-2",
 });
 
 // NVIDIA
-export const getNvidiaConfig = (env: AppBindings) => ({
+export const getNvidiaConfig = (env: TAppBindings) => ({
   apiKey: env.NVIDIA_API_KEY,
   baseURL: env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1",
   model: env.NVIDIA_MODEL || "nvidia/nemotron-3-ultra-550b-a55b",
 });
 
 // EMBEDDING
-export const getEmbeddingConfig = (env: AppBindings) => ({
+export const getEmbeddingConfig = (env: TAppBindings) => ({
   apiKey: env.GEMINI_API_KEY,
   baseURL:
     env.GOOGLE_GENERATIVE_BASE_URL ||
@@ -33,7 +33,7 @@ export const getEmbeddingConfig = (env: AppBindings) => ({
 });
 
 // GROQ
-export const getGroqConfig = (env: AppBindings) => ({
+export const getGroqConfig = (env: TAppBindings) => ({
   apiKey: env.GROQ_API_KEY,
   baseURL:
     env.GOOGLE_GENERATIVE_BASE_URL ||

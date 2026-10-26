@@ -4,7 +4,7 @@ import type {
   AgentOptions,
   RunState,
 } from "@openai/agents";
-import type { AppBindings, TContext } from "@/types/common";
+import type { TAppBindings, TContext } from "@/types/common";
 import type { ToolLoopAgentSettings, wrapLanguageModel } from "ai";
 
 export type TProvider = "gemini" | "mercury" | "nvidia" | "groq";
@@ -42,12 +42,12 @@ export type TLanguageModel = ReturnType<typeof wrapLanguageModel>;
 
 export type TBuildModel = {
   provider: TProvider;
-  env: AppBindings;
+  env: TAppBindings;
 };
 
 export type TBuildOpenAICompatible = {
   name: "mercury" | "nvidia";
-  env: AppBindings;
+  env: TAppBindings;
 };
 
 export type TWithFallback = {

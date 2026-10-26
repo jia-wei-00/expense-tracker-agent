@@ -31,6 +31,8 @@
     "SUPABASE_URL": "https://ydpvxgjfcftaipcpirph.supabase.co",
     "SUPABASE_JWKS_URL": "https://ydpvxgjfcftaipcpirph.supabase.co/auth/v1/.well-known/jwks.json",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_GY_OEyl69swkAQyWNFJwVg_1jW3vsSn",
+    // RevenueCat webhook events from the other environment are acked and ignored.
+    "REVENUECAT_ENVIRONMENT": "PRODUCTION",
     "GOOGLE_GENERATIVE_AI_MODEL": "gemini-3.5-flash-lite",
     "GOOGLE_GENERATIVE_BASE_URL": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "MERCURY_BASE_URL": "https://api.inceptionlabs.ai/v1",

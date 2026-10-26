@@ -1,6 +1,6 @@
 import { initLogger } from "braintrust";
 import { createMiddleware } from "hono/factory";
-import type { ICommonContext } from "@/types/common";
+import type { TAppEnv } from "@/types/common";
 
 const VERCEL_WAIT_UNTIL = Symbol.for("@vercel/request-context");
 
@@ -16,7 +16,7 @@ let initialized = false;
  * when the isolate is frozen after the response. Bridging the symbol to
  * Cloudflare's `ctx.waitUntil` lets the SDK's own flush complete.
  */
-export const braintrust = createMiddleware<ICommonContext>(async (c, next) => {
+export const braintrust = createMiddleware<TAppEnv>(async (c, next) => {
   Reflect.set(globalThis, VERCEL_WAIT_UNTIL, {
     get: () => ({
       waitUntil: (promise: Promise<unknown>) =>

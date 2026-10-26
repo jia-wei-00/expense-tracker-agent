@@ -47,32 +47,30 @@ These are what `typecheck` / `lint` report today (2026-10-18). Fix each one when
 ### Casts and `any`
 - `src/utils/model.ts:28`: `value as TProvider` inside `isProvider`. Use the `z.enum` recipe.
 - `src/libs/cache.ts:34`: `kv.get<T>(key, "json")`. Use the schema-taking `getOrSet` recipe (with `categoriesSchema` from `schemas/expense`).
-- `src/utils/json.ts:10`: `JSON.parse` returns `any` into `Json`. Use the `z.json()` recipe.
 - `src/middlewares/zod.validator.ts:16`: `JSON.parse(result.error.message)` puts `any` into `message: string`. Use `z.prettifyError`.
-- `src/routes/ai.route.ts:9,15` and `src/index.ts:4`: untyped `new Hono()`, so `c.env.CORS_ORIGIN` is `any`.
+- `src/routes/ai.route.ts:16`: the `cors({ origin })` callback's context is untyped by Hono, so `c.env.CORS_ORIGIN` is `any`. Read the origin from a typed middleware instead.
 - `src/types/utils/model.d.ts:32`: `RunState<any, any>`.
 
 ### Types
-- `src/types/*.d.ts` (`common`, `api-response`, `validation`, `utils/model`) should be `.ts` files.
+- `src/types/*.d.ts` (`validation`, `utils/model`) should be `.ts` files.
 - `src/types/utils/model.d.ts:1-6` imports `@openai/agents`, which isn't installed, so everything built on it is `any`. Its agent types (`TInputType`, `TBuildAgent`, `TCreateAgent`, `TRunAgent`, `TResumeAgent`) are unused; delete them and rewrite `TSwitchProvider` as `{ c; provider?; fallback? }`.
 - `src/utils/model.ts:7-14`: value imports used only as types. Use `import type`. Once `utils/model.ts` is fixed, add `"verbatimModuleSyntax": true` to `tsconfig.json`. Turning it on now breaks `wrangler deploy`: esbuild then keeps the import of `@/types/utils/model`, a `.d.ts` with no runtime file.
-- `src/types/api-response.d.ts:2`: unused `zod` import. `src/types/validation.d.ts:1`: `ValidationErrorItem` is unused.
-- Names without the `T` prefix: `AuthVariables`, `ValidContext`, `AppBindings` (`common.d.ts`); `ApiSuccessResponse`, `SuccessOptions`, `ErrorResponse` (`api-response.d.ts`); `ValidationErrorItem`. `ICommonContext` is an `interface` with an `I` prefix: make it `type TAppEnv`.
+- `src/types/validation.d.ts:1`: `ValidationErrorItem` is unused and lacks the `T` prefix.
 - `src/constants/model-config.ts:7-41`: wrangler types each var as its literal value, so every `env.X || "default"` fallback is dead code to the compiler. Read optional config through a schema or drop the fallback.
 
 ### Size
 - `src/services/ai/tools/expense.tools.ts`: 242 lines; `expenseTools` is 184. Use one factory file per tool (`list-categories.tool.ts`, `list-expenses.tool.ts`, `get-expense.tool.ts`, `get-expense-summary.tool.ts`, `add-expense.tool.ts`, `update-expense.tool.ts`, `delete-expense.tool.ts`). `expense.tools.ts` keeps only the map, with the same keys. `getCategories` moves to `src/services/expense/category.service.ts`; `toMessage` moves to `src/utils/error.ts`.
-- `aiChat` (`src/services/ai/index.ts:34`): 54 lines.
+- `aiChat` (`src/services/ai/index.ts:35`): 57 lines. Move the `createAgentUIStreamResponse` options into a helper.
 
 ### Layers and naming
-- `src/services/ai/index.ts` builds HTTP responses (imports `libs/response`) and is a barrel file. Move `aiChat` / `aiScan` to `src/handlers/ai.handler.ts`, and the inline scan prompt to `prompts/scan.prompt.ts`.
+- `src/services/ai/index.ts` builds HTTP responses (imports `libs/response`) and is a barrel file. Move `aiChat` / `aiScan` to `src/handlers/ai.handler.ts` (the webhook handler already follows that layout).
 - `src/constants/model-config.ts` holds functions that read env, not literal values. Move it to `src/libs/model-config.ts`.
 - Files missing their kind suffix: `schemas/ai.ts` → `ai.schema.ts`, `schemas/expense.ts` → `expense.schema.ts`, `middlewares/zod.validator.ts` → `zod-validator.middleware.ts`.
 - Default exports: `src/middlewares/zod.validator.ts:7`, `src/routes/ai.route.ts:25`.
 - Empty: `src/services/supabase.ts`, `src/middlewares/trace.middleware.ts`, and the folder `src/services/supabase/`.
 
 ### Other lint findings
-- `src/services/ai/index.ts:50`: a promise returned inside `try` must be `return await`ed, or the `catch` never sees its rejection.
-- `src/services/ai/index.ts:73`: a `.catch` callback parameter should be typed `unknown`.
+- `src/services/ai/index.ts:52`: a promise returned inside `try` must be `return await`ed, or the `catch` never sees its rejection.
+- `src/services/ai/index.ts:75`: a `.catch` callback parameter should be typed `unknown`.
 - `src/services/ai/tools/expense.tools.ts:92` (`limit ?? 10`) and `:145` (`data?.[0]`): guards on values that can't be nullish.
 - `src/constants/model-config.ts:39`: Groq falls back to Google's base URL (copy-paste slip; unused today).

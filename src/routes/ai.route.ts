@@ -5,8 +5,9 @@ import zValidator from "@/middlewares/zod.validator";
 import { chatSchema, scanSchema } from "@/schemas/ai";
 import { aiChat, aiScan } from "@/services/ai";
 import { braintrust } from "@/middlewares/braintrust.middleware";
+import type { TAppEnv } from "@/types/common";
 
-const app = new Hono();
+const app = new Hono<TAppEnv>();
 
 // `withSupabase` does not handle CORS, so the browser client needs Hono's.
 app.use(

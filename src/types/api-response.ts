@@ -1,22 +1,23 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import z from "zod";
 
-export type ApiSuccessResponse<T> = {
+export type TApiSuccessResponse<T> = {
   success: true;
   message?: string;
   data?: T;
 };
 
-export type SuccessOptions<T> = {
+export type TSuccessOptions<T> = {
   status?: ContentfulStatusCode;
   message?: string;
   data?: T;
 };
 
-export type ErrorResponse = {
+export type TErrorResponse = {
   status?: ContentfulStatusCode;
   title?: string;
   detail?: string;
   instance?: string;
   message?: string;
+  /** RFC 9457 extension members, spread into the problem body as-is. */
+  extensions?: Record<string, string | number | boolean>;
 };

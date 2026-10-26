@@ -71,10 +71,15 @@ cancels the pending calls (`state: "output-denied"`).
 
 | Status | When |
 |---|---|
+| 402 | No active subscription — see `docs/subscription-api.md` |
 | 404 | Session not found / not yours |
 | 409 | No pending approval, unknown or already answered `callId`, reused message id |
 | 410 | Approval older than 10 minutes — send a new message instead |
 | 422 | Invalid body, or not every pending call was answered |
+| 429 | Monthly AI limit reached; body carries `used`, `quota`, `period` |
+
+Each new `message` consumes one chat unit of the monthly limit; `approvals`
+requests are free. See `docs/subscription-api.md` for limits per tier.
 
 **Metadata**: the assistant message's `metadata.usage` (`inputTokens`,
 `outputTokens`, `totalTokens`) arrives on `finish`, for the context meter.

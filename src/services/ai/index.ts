@@ -5,9 +5,11 @@ import { chatAgent } from "@/services/ai/agents/chat.agent";
 import { ChatError } from "@/services/ai/chat/chat.error";
 import { saveMessage } from "@/services/ai/chat/message.service";
 import { prepareTurn } from "@/services/ai/chat/turn.service";
+import { scanInstructions } from "@/services/ai/prompts/scan.prompt";
 import { getCategories } from "@/services/ai/tools/expense.tools";
+import { consumeAiUsage } from "@/services/subscription/usage.service";
 import type { TAiChat, TAiScan } from "@/types/ai";
-import type { ValidContext } from "@/types/common";
+import type { TValidContext } from "@/types/common";
 import { getDateTimeNow } from "@/utils/date";
 import { getModel } from "@/utils/model";
 import * as ai from "ai";
@@ -31,16 +33,18 @@ const generateMessageId = createIdGenerator({ prefix: "msg", size: 16 });
  * `chat_message`. The assistant reply is persisted when the stream ends, even
  * if the client disconnects mid-stream.
  */
-export async function aiChat(c: ValidContext<TAiChat>) {
+export async function aiChat(c: TValidContext<TAiChat>) {
   const body = c.req.valid("json");
-  const { supabase, supabaseAdmin } = c.var.supabaseContext;
+  const { supabase, supabaseAdmin, userClaims } = c.var.supabaseContext;
   const { sessionId } = body;
 
   try {
+    if (!userClaims) throw new ChatError(HTTP_STATUS.UNAUTHORIZED, "Not authenticated");
     const agent = chatAgent(c);
     const messages = await prepareTurn(
       supabase,
       supabaseAdmin,
+      userClaims.id,
       body,
       agent.tools,
     );
@@ -79,6 +83,7 @@ export async function aiChat(c: ValidContext<TAiChat>) {
         status: error.status,
         title: error.title,
         detail: error.detail,
+        extensions: error.extensions,
       });
     }
     console.error("aiChat failed:", error);
@@ -90,26 +95,18 @@ export async function aiChat(c: ValidContext<TAiChat>) {
  * `POST /ai/scan`. Stateless receipt extraction: returns a proposed expense for
  * the client to review in its add-expense form. Nothing is written.
  */
-export async function aiScan(c: ValidContext<TAiScan>) {
+export async function aiScan(c: TValidContext<TAiScan>) {
   const { url, mediaType } = c.req.valid("json");
+  const { supabaseAdmin, userClaims } = c.var.supabaseContext;
 
   try {
+    if (!userClaims) throw new ChatError(HTTP_STATUS.UNAUTHORIZED, "Not authenticated");
+    await consumeAiUsage(supabaseAdmin, userClaims.id, "scan");
     const categories = await getCategories(c);
     const { output } = await generateText({
       model: getModel({ c, provider: "gemini" }),
       output: Output.object({ schema: addExpenseSchema }),
-      system: `Extract the single expense or income transaction shown in the receipt image.
-
-    DateTime now:
-    ${getDateTimeNow()}
-
-    Categories (id, name, is_expense):
-    ${JSON.stringify(categories)}
-
-    Rules:
-    - Use the receipt total as the amount.
-    - Pick the best matching category id and set is_expense to match it.
-    - Use the receipt date; fall back to the current datetime if none is visible.`.trim(),
+      system: scanInstructions({ now: getDateTimeNow(), categories }),
       messages: [
         {
           role: "user",
@@ -120,6 +117,14 @@ export async function aiScan(c: ValidContext<TAiScan>) {
 
     return successResponse(c, { data: output });
   } catch (error) {
+    if (error instanceof ChatError) {
+      return errorResponse(c, {
+        status: error.status,
+        title: error.title,
+        detail: error.detail,
+        extensions: error.extensions,
+      });
+    }
     if (
       NoObjectGeneratedError.isInstance(error) ||
       NoOutputGeneratedError.isInstance(error)

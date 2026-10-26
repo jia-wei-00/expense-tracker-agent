@@ -1,9 +1,9 @@
 import type { Context } from "hono";
 import { HTTP_STATUS } from "@/constants/error";
 import type {
-  ApiSuccessResponse,
-  ErrorResponse,
-  SuccessOptions,
+  TApiSuccessResponse,
+  TErrorResponse,
+  TSuccessOptions,
 } from "@/types/api-response";
 
 /**
@@ -29,13 +29,13 @@ import type {
  * @param options.status - HTTP status to return (see `HTTP_STATUS` in `@/constants/error`).
  * @param options.message - Optional human-readable message; omitted from the body when falsy.
  * @param options.data - Optional payload; omitted from the body when `undefined`.
- * @returns A JSON `ApiSuccessResponse<T>` response with `success: true`.
+ * @returns A JSON `TApiSuccessResponse<T>` response with `success: true`.
  */
 export function successResponse<T>(
   c: Context,
-  { status = HTTP_STATUS.OK, message, data }: SuccessOptions<T>,
+  { status = HTTP_STATUS.OK, message, data }: TSuccessOptions<T>,
 ) {
-  const response: ApiSuccessResponse<T> = {
+  const response: TApiSuccessResponse<T> = {
     success: true,
     ...(message ? { message } : {}),
     ...(data !== undefined ? { data } : {}),
@@ -65,12 +65,13 @@ export function successResponse<T>(
  * });
  *
  * @param c - The Hono context to respond with.
- * @param options - Error options; optional (see `ErrorResponse` in `@/types/api-response`).
+ * @param options - Error options; optional (see `TErrorResponse` in `@/types/api-response`).
  * @param options.status - HTTP status to return; must be a `ContentfulStatusCode` (see `HTTP_STATUS` in `@/constants/error`). Defaults to `HTTP_STATUS.INTERNAL_SERVER_ERROR` (500).
  * @param options.title - Short, human-readable problem summary; omitted when falsy.
  * @param options.detail - Longer explanation specific to this occurrence; omitted when falsy.
  * @param options.instance - URI reference identifying the specific occurrence; omitted when falsy.
  * @param options.message - Optional message field for clients that prefer plain `message`; omitted when falsy.
+ * @param options.extensions - Extra top-level members (RFC 9457 extensions), e.g. quota details on a 429.
  * @returns A JSON response with the `Content-Type` header set to `application/problem+json`.
  */
 export function errorResponse(
@@ -81,9 +82,12 @@ export function errorResponse(
     detail,
     instance,
     message,
-  }: ErrorResponse = {},
+    extensions,
+  }: TErrorResponse = {},
 ) {
+  // Extensions first so they can never override the problem fields.
   const response = {
+    ...extensions,
     status,
     ...(title ? { title } : {}),
     ...(detail ? { detail } : {}),
