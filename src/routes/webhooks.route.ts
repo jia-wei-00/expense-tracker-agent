@@ -8,12 +8,9 @@ import type { TAppEnv } from "@/types/common";
 
 export const webhooks = new Hono<TAppEnv>();
 
-// Server-to-server: no user JWT and no CORS. `auth: "none"` still provides the
-// service-role client the subscription RPCs need.
+// Server-to-server: no user JWT and no CORS. The shared secret is checked
+// before anything else; `auth: "none"` still provides the service-role client
+// the subscription RPCs need.
+webhooks.use("*", revenuecatAuth);
 webhooks.use("*", withSupabase({ auth: "none" }));
-webhooks.post(
-  "/revenuecat",
-  revenuecatAuth,
-  zValidator("json", revenuecatWebhookSchema),
-  revenuecatWebhook,
-);
+webhooks.post("/revenuecat", zValidator("json", revenuecatWebhookSchema), revenuecatWebhook);

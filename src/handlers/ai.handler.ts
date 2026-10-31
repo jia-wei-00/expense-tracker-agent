@@ -8,7 +8,7 @@ import { prepareTurn } from "@/services/ai/chat/turn.service";
 import { scanInstructions } from "@/services/ai/prompts/scan.prompt";
 import { getCategories } from "@/services/ai/tools/expense.tools";
 import { consumeAiUsage } from "@/services/subscription/usage.service";
-import type { TAiChat, TAiScan } from "@/types/ai";
+import type { TAiChat, TAiScan, TChatMessageMetadata } from "@/types/ai";
 import type { TValidContext } from "@/types/common";
 import { getDateTimeNow } from "@/utils/date";
 import { getModel } from "@/utils/model";
@@ -21,11 +21,25 @@ import {
   NoOutputGeneratedError,
   Output,
 } from "ai";
+import type { TextStreamPart, ToolSet } from "ai";
 import { wrapAISDK } from "braintrust";
 
 const { generateText } = wrapAISDK(ai);
 
 const generateMessageId = createIdGenerator({ prefix: "msg", size: 16 });
+
+/** Attaches token usage to the assistant message once the stream finishes. */
+function usageMetadata({ part }: { part: TextStreamPart<ToolSet> }): TChatMessageMetadata | undefined {
+  return part.type === "finish"
+    ? {
+        usage: {
+          inputTokens: part.totalUsage.inputTokens,
+          outputTokens: part.totalUsage.outputTokens,
+          totalTokens: part.totalUsage.totalTokens,
+        },
+      }
+    : undefined;
+}
 
 /**
  * `POST /ai/chat`. The backend owns the conversation: the client sends only
@@ -49,21 +63,12 @@ export async function aiChat(c: TValidContext<TAiChat>) {
       agent.tools,
     );
 
-    return createAgentUIStreamResponse({
+    return await createAgentUIStreamResponse({
       agent,
       uiMessages: messages,
       originalMessages: messages,
       generateMessageId,
-      messageMetadata: ({ part }) =>
-        part.type === "finish"
-          ? {
-              usage: {
-                inputTokens: part.totalUsage.inputTokens,
-                outputTokens: part.totalUsage.outputTokens,
-                totalTokens: part.totalUsage.totalTokens,
-              },
-            }
-          : undefined,
+      messageMetadata: usageMetadata,
       // Drain a copy of the stream so the run (and `onEnd`) completes even if
       // the client goes away.
       consumeSseStream: ({ stream }) =>
@@ -72,7 +77,7 @@ export async function aiChat(c: TValidContext<TAiChat>) {
         if (responseMessage.parts.length === 0) return;
         c.executionCtx.waitUntil(
           saveMessage(supabaseAdmin, sessionId, responseMessage).catch(
-            (error) => console.error("aiChat: saving reply failed:", error),
+            (error: unknown) => console.error("aiChat: saving reply failed:", error),
           ),
         );
       },

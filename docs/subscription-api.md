@@ -110,7 +110,7 @@ gains entitlement the app uploads its local rows through the
 `purge_lapsed_user_data()` deletes all data (expenses, categories, budgets,
 loans, recurring expenses, chat history, chat audio) of users whose plan and
 billing grace ended more than 90 days ago. `user_profile` (keeps
-`trial_used`) and `whatsapp_users` are not deleted. Re-subscribing within
+`trial_used` and the WhatsApp link) is not deleted. Re-subscribing within
 the window keeps the cloud copy; after it, the app re-uploads from the device.
 
 ## Backend reference

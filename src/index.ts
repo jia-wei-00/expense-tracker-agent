@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import ai from "@/routes/ai.route";
+import { ai } from "@/routes/ai.route";
 import { webhooks } from "@/routes/webhooks.route";
 import type { TAppEnv } from "@/types/common";
 

@@ -27,7 +27,9 @@ const isUuid = (id: string) => uuidSchema.safeParse(id).success;
 const toIso = (ms: number) => new Date(ms).toISOString();
 
 /** `pro` wins over `plus`; no known entitlement keeps the stored tier. */
-function tierFromEntitlements(ids: string[] | null | undefined): TTier | undefined {
+function tierFromEntitlements(
+  ids: string[] | null | undefined,
+): TTier | undefined {
   if (ids?.includes("pro")) return "pro";
   if (ids?.includes("plus")) return "plus";
   return undefined;
@@ -35,7 +37,11 @@ function tierFromEntitlements(ids: string[] | null | undefined): TTier | undefin
 
 /** The Supabase user id RevenueCat was given at login; anonymous ids never match. */
 function resolveUserId(event: TLifecycleEvent): string | undefined {
-  return [event.app_user_id, event.original_app_user_id, ...(event.aliases ?? [])]
+  return [
+    event.app_user_id,
+    event.original_app_user_id,
+    ...(event.aliases ?? []),
+  ]
     .filter((id) => typeof id === "string")
     .find(isUuid);
 }
@@ -58,7 +64,10 @@ function patchFromEvent(event: TLifecycleEvent): TSubscriptionPatch {
   }
   return {
     p_tier: tier,
-    p_expires_at: event.expiration_at_ms == null ? undefined : toIso(event.expiration_at_ms),
+    p_expires_at:
+      event.expiration_at_ms == null
+        ? undefined
+        : toIso(event.expiration_at_ms),
     p_grace_expires_at:
       flags.billingIssue && event.grace_period_expiration_at_ms != null
         ? toIso(event.grace_period_expiration_at_ms)
@@ -172,6 +181,7 @@ export async function handleRevenuecatEvent(
   environment: TRevenuecatEnvironment,
 ): Promise<TWebhookOutcome> {
   const payload = toJson(event);
+  console.log(payload);
 
   const lifecycle = lifecycleEventSchema.safeParse(event);
   if (lifecycle.success) {

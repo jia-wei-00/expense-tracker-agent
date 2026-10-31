@@ -60,17 +60,13 @@ These are what `typecheck` / `lint` report today (2026-10-18). Fix each one when
 
 ### Size
 - `src/services/ai/tools/expense.tools.ts`: 242 lines; `expenseTools` is 184. Use one factory file per tool (`list-categories.tool.ts`, `list-expenses.tool.ts`, `get-expense.tool.ts`, `get-expense-summary.tool.ts`, `add-expense.tool.ts`, `update-expense.tool.ts`, `delete-expense.tool.ts`). `expense.tools.ts` keeps only the map, with the same keys. `getCategories` moves to `src/services/expense/category.service.ts`; `toMessage` moves to `src/utils/error.ts`.
-- `aiChat` (`src/services/ai/index.ts:35`): 57 lines. Move the `createAgentUIStreamResponse` options into a helper.
 
 ### Layers and naming
-- `src/services/ai/index.ts` builds HTTP responses (imports `libs/response`) and is a barrel file. Move `aiChat` / `aiScan` to `src/handlers/ai.handler.ts` (the webhook handler already follows that layout).
 - `src/constants/model-config.ts` holds functions that read env, not literal values. Move it to `src/libs/model-config.ts`.
 - Files missing their kind suffix: `schemas/ai.ts` → `ai.schema.ts`, `schemas/expense.ts` → `expense.schema.ts`, `middlewares/zod.validator.ts` → `zod-validator.middleware.ts`.
-- Default exports: `src/middlewares/zod.validator.ts:7`, `src/routes/ai.route.ts:25`.
+- Default export: `src/middlewares/zod.validator.ts:7`.
 - Empty: `src/services/supabase.ts`, `src/middlewares/trace.middleware.ts`, and the folder `src/services/supabase/`.
 
 ### Other lint findings
-- `src/services/ai/index.ts:52`: a promise returned inside `try` must be `return await`ed, or the `catch` never sees its rejection.
-- `src/services/ai/index.ts:75`: a `.catch` callback parameter should be typed `unknown`.
 - `src/services/ai/tools/expense.tools.ts:92` (`limit ?? 10`) and `:145` (`data?.[0]`): guards on values that can't be nullish.
 - `src/constants/model-config.ts:39`: Groq falls back to Google's base URL (copy-paste slip; unused today).
