@@ -1,0 +1,14 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "spend.wise",
+      "sha256_cert_fingerprints": [
+        "5A:95:F7:46:11:A9:FD:ED:4F:7B:B0:71:45:BD:35:38:58:F6:C4:57:6E:92:59:85:64:2C:AA:8E:11:B3:1E:FC",
+        "2A:8E:B6:64:D8:3D:E6:A2:1D:09:28:B2:13:14:6C:0D:6B:5E:8C:EB:9D:A4:D8:2B:FD:B1:37:44:44:F3:4F:BE",
+        "PLAY_APP_SIGNING_SHA256"
+      ]
+    }
+  }
+]
