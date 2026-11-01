@@ -39,3 +39,11 @@ export type TSubscriptionPatch = Omit<
 /** One row of the `consume_ai_usage` RPC. */
 export type TAiUsageResult =
   Database["public"]["Functions"]["consume_ai_usage"]["Returns"][number];
+
+/** A tier that can be purchased; `free` is the absence of a plan. */
+export type TPaidTier = Exclude<TTier, "free">;
+
+/** Options for the `requirePlan` middleware: at least one accepted paid tier. */
+export type TRequirePlanOptions = {
+  plans: readonly [TPaidTier, ...TPaidTier[]];
+};

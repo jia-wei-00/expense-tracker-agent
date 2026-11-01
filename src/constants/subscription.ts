@@ -1,4 +1,4 @@
-import type { TLifecycleEventType } from "@/types/subscription";
+import type { TLifecycleEventType, TPaidTier } from "@/types/subscription";
 
 /**
  * Monthly AI limits per paid tier (Asia/Kuala_Lumpur calendar month). Yearly
@@ -9,6 +9,12 @@ export const AI_LIMITS = {
   plus: { chat: 200, scan: 60 },
   pro: { chat: 600, scan: 200 },
 } as const;
+
+/** Display names used in client-facing messages such as the 402 detail. */
+export const PLAN_LABELS: Record<TPaidTier, string> = {
+  plus: "Plus",
+  pro: "Pro",
+};
 
 /** Where the monthly quota period is computed; matches the RPC and purge job. */
 export const USAGE_TIMEZONE = "Asia/Kuala_Lumpur";

@@ -49,6 +49,19 @@ supabase.from("user_entitlement").select("tier, entitled_until").maybeSingle();
 supabase.from("ai_usage").select("chat_count, scan_count").eq("period", "2026-10").maybeSingle();
 ```
 
+## Plan-gated writes
+
+On `expense`, `chat_session` and `chat_message`, reading stays ownership-only,
+but insert, update and delete also require an active plan
+(`migrations/20261102000000_require_plan_rls.sql`,
+`20261102000100_plan_gate_writes_only.sql`). Write policies are
+`auth.uid() = user_id and has_active_plan()`, where `has_active_plan()` reads
+`user_entitlement.entitled_until > now()`. A free or lapsed user can still
+list and export their rows but gets Postgres error `42501` on any write, so
+the app should check `user_entitlement` before offering add/edit/delete rather
+than retry. The Worker is unaffected: the chat flow rejects free users with
+402 before any write, and `chat_message` writes use the service role.
+
 `user_profile` columns:
 
 | Column | Meaning |

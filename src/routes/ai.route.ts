@@ -6,6 +6,7 @@ import { chatSchema, scanSchema } from "@/schemas/ai";
 import { aiChat, aiScan } from "@/handlers/ai.handler";
 import { braintrust } from "@/middlewares/braintrust.middleware";
 import type { TAppEnv } from "@/types/common";
+import { requirePlan } from "@/middlewares/require-plan.middleware";
 
 export const ai = new Hono<TAppEnv>();
 
@@ -19,6 +20,7 @@ ai.use(
   }),
 );
 ai.use("*", withSupabase({ auth: "user" }));
+ai.use("*", requirePlan({ plans: ["plus", "pro"] }));
 ai.use("*", braintrust);
 ai.post("/chat", zValidator("json", chatSchema), aiChat);
 ai.post("/scan", zValidator("json", scanSchema), aiScan);

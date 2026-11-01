@@ -42,6 +42,7 @@ export type Database = {
         Row: {
           amount: number;
           category: number | null;
+          client_id: string;
           created_at: string;
           id: number;
           user_id: string;
@@ -49,6 +50,7 @@ export type Database = {
         Insert: {
           amount: number;
           category?: number | null;
+          client_id?: string;
           created_at?: string;
           id?: number;
           user_id?: string;
@@ -56,6 +58,7 @@ export type Database = {
         Update: {
           amount?: number;
           category?: number | null;
+          client_id?: string;
           created_at?: string;
           id?: number;
           user_id?: string;
@@ -133,6 +136,7 @@ export type Database = {
         Row: {
           amount: number | null;
           category: number | null;
+          client_id: string;
           created_at: string;
           id: number;
           is_expense: boolean | null;
@@ -143,6 +147,7 @@ export type Database = {
         Insert: {
           amount?: number | null;
           category?: number | null;
+          client_id?: string;
           created_at?: string;
           id?: number;
           is_expense?: boolean | null;
@@ -153,6 +158,7 @@ export type Database = {
         Update: {
           amount?: number | null;
           category?: number | null;
+          client_id?: string;
           created_at?: string;
           id?: number;
           is_expense?: boolean | null;
@@ -172,6 +178,7 @@ export type Database = {
       };
       expense_category: {
         Row: {
+          client_id: string;
           created_at: string;
           id: number;
           is_expense: boolean | null;
@@ -179,6 +186,7 @@ export type Database = {
           user_id: string | null;
         };
         Insert: {
+          client_id?: string;
           created_at?: string;
           id?: number;
           is_expense?: boolean | null;
@@ -186,6 +194,7 @@ export type Database = {
           user_id?: string | null;
         };
         Update: {
+          client_id?: string;
           created_at?: string;
           id?: number;
           is_expense?: boolean | null;
@@ -196,6 +205,7 @@ export type Database = {
       };
       loan: {
         Row: {
+          client_id: string;
           created_at: string;
           id: number;
           interest_rate: number | null;
@@ -204,6 +214,7 @@ export type Database = {
           user_id: string | null;
         };
         Insert: {
+          client_id?: string;
           created_at?: string;
           id?: number;
           interest_rate?: number | null;
@@ -212,6 +223,7 @@ export type Database = {
           user_id?: string | null;
         };
         Update: {
+          client_id?: string;
           created_at?: string;
           id?: number;
           interest_rate?: number | null;
@@ -224,6 +236,7 @@ export type Database = {
       loan_record: {
         Row: {
           amount: string | null;
+          client_id: string;
           created_at: string;
           id: number;
           loan: number | null;
@@ -232,6 +245,7 @@ export type Database = {
         };
         Insert: {
           amount?: string | null;
+          client_id?: string;
           created_at?: string;
           id?: number;
           loan?: number | null;
@@ -240,6 +254,7 @@ export type Database = {
         };
         Update: {
           amount?: string | null;
+          client_id?: string;
           created_at?: string;
           id?: number;
           loan?: number | null;
@@ -351,6 +366,8 @@ export type Database = {
           trial_used: boolean;
           updated_at: string;
           user_id: string;
+          whatsapp_phone: string | null;
+          whatsapp_verified_at: string | null;
           will_renew: boolean;
         };
         Insert: {
@@ -370,6 +387,8 @@ export type Database = {
           trial_used?: boolean;
           updated_at?: string;
           user_id: string;
+          whatsapp_phone?: string | null;
+          whatsapp_verified_at?: string | null;
           will_renew?: boolean;
         };
         Update: {
@@ -389,6 +408,8 @@ export type Database = {
           trial_used?: boolean;
           updated_at?: string;
           user_id?: string;
+          whatsapp_phone?: string | null;
+          whatsapp_verified_at?: string | null;
           will_renew?: boolean;
         };
         Relationships: [];
@@ -414,33 +435,6 @@ export type Database = {
           expires_at?: string;
           id?: string;
           phone_number?: string;
-        };
-        Relationships: [];
-      };
-      whatsapp_users: {
-        Row: {
-          created_at: string | null;
-          is_verified: boolean;
-          phone_number: string;
-          push_platform: string | null;
-          push_token: string | null;
-          user_id: string;
-        };
-        Insert: {
-          created_at?: string | null;
-          is_verified?: boolean;
-          phone_number: string;
-          push_platform?: string | null;
-          push_token?: string | null;
-          user_id: string;
-        };
-        Update: {
-          created_at?: string | null;
-          is_verified?: boolean;
-          phone_number?: string;
-          push_platform?: string | null;
-          push_token?: string | null;
-          user_id?: string;
         };
         Relationships: [];
       };
@@ -511,8 +505,11 @@ export type Database = {
           total_income: number;
         }[];
       };
+      has_active_plan: { Args: never; Returns: boolean };
+      import_local_data: { Args: { payload: Json }; Returns: Json };
+      link_whatsapp: { Args: { p_phone: string }; Returns: undefined };
       process_recurring_expenses: { Args: never; Returns: undefined };
-      purge_free_user_expenses: { Args: never; Returns: number };
+      purge_lapsed_user_data: { Args: never; Returns: number };
       set_push_token: {
         Args: { p_platform?: string; p_token: string };
         Returns: undefined;
@@ -527,6 +524,7 @@ export type Database = {
         };
         Returns: string;
       };
+      unlink_whatsapp: { Args: never; Returns: undefined };
     };
     Enums: {
       [_ in never]: never;
@@ -539,7 +537,10 @@ export type Database = {
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">];
+type DefaultSchema = DatabaseWithoutInternals[Extract<
+  keyof Database,
+  "public"
+>];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
@@ -572,8 +573,7 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
@@ -597,8 +597,7 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
@@ -622,8 +621,7 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
   EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals;
   }
