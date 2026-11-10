@@ -4,6 +4,7 @@ import { addExpenseSchema } from "@/schemas/expense";
 import { chatAgent } from "@/services/ai/agents/chat.agent";
 import { ChatError } from "@/services/ai/chat/chat.error";
 import { saveMessage } from "@/services/ai/chat/message.service";
+import { toModelHistory } from "@/services/ai/chat/model-input.service";
 import { prepareTurn } from "@/services/ai/chat/turn.service";
 import { scanInstructions } from "@/services/ai/prompts/scan.prompt";
 import { getCategories } from "@/services/ai/tools/expense.tools";
@@ -70,7 +71,7 @@ export async function aiChat(c: TValidContext<TAiChat>) {
 
     return await createAgentUIStreamResponse({
       agent,
-      uiMessages: messages,
+      uiMessages: toModelHistory(messages),
       originalMessages: messages,
       generateMessageId,
       messageMetadata: usageMetadata,

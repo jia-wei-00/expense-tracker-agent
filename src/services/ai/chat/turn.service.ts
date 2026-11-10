@@ -51,6 +51,6 @@ export async function prepareTurn(
   await consumeAiUsage(admin, userId, "chat");
   await ensureSession(supabase, sessionId, message);
   const resolved = await supersedeApprovals(admin, sessionId, history);
-  await appendMessage(admin, sessionId, message);
-  return [...resolved, message];
+  const saved = await appendMessage(admin, sessionId, message);
+  return [...resolved, saved];
 }

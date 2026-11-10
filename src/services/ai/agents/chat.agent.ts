@@ -2,7 +2,6 @@ import { AGENT_MAX_STEPS } from "@/constants/ai";
 import { chatInstructions } from "@/services/ai/prompts/chat.prompt";
 import { expenseTools } from "@/services/ai/tools/expense.tools";
 import type { TContext } from "@/types/common";
-import { getDateTimeNow } from "@/utils/date";
 import { getModel } from "@/utils/model";
 import * as ai from "ai";
 import { isStepCount } from "ai";

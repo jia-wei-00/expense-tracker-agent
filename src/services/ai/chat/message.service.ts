@@ -21,8 +21,8 @@ export async function loadMessages(
     .from("chat_message")
     .select("data")
     .eq("session_id", sessionId)
-    .order("id", { ascending: false });
-  // .limit(CHAT_HISTORY_LIMIT);
+    .order("id", { ascending: false })
+    .limit(CHAT_HISTORY_LIMIT);
 
   if (error) throw new Error(error.message);
   // `validateUIMessages` rejects an empty list (a new session has no history).
@@ -34,32 +34,42 @@ export async function loadMessages(
   });
 }
 
-/** The `chat_message` row for `message`, stamped with `metadata.savedAt`. */
+/** `message` with `metadata.savedAt` set to now; stamped on every write. */
+function stamped(message: TChatMessage): TChatMessage {
+  return {
+    ...message,
+    metadata: { ...message.metadata, savedAt: new Date().toISOString() },
+  };
+}
+
+/** The `chat_message` row for `message`. */
 function toRow(sessionId: string, message: TChatMessage) {
   return {
     session_id: sessionId,
     type: MESSAGE_TYPE_BY_ROLE[message.role],
-    data: toJson({
-      ...message,
-      metadata: { ...message.metadata, savedAt: new Date().toISOString() },
-    }),
+    data: toJson(message),
   };
 }
 
-/** Inserts a new user message; a reused message id is a 409. */
+/**
+ * Inserts a new user message and returns it as stored, so this turn sees the
+ * same `savedAt` that later turns load. A reused message id is a 409.
+ */
 export async function appendMessage(
   admin: TSupabaseAdminClient,
   sessionId: string,
   message: TChatMessage,
-) {
+): Promise<TChatMessage> {
+  const saved = stamped(message);
   const { error } = await admin
     .from("chat_message")
-    .insert(toRow(sessionId, message));
+    .insert(toRow(sessionId, saved));
 
   if (error?.code === PG_ERROR_CODE.UNIQUE_VIOLATION) {
     throw new ChatError(HTTP_STATUS.CONFLICT, "Message already exists");
   }
   if (error) throw new Error(error.message);
+  return saved;
 }
 
 /** Inserts or replaces a message by id (assistant replies and continuations). */
@@ -70,7 +80,9 @@ export async function saveMessage(
 ) {
   const { error } = await admin
     .from("chat_message")
-    .upsert(toRow(sessionId, message), { onConflict: "session_id,ui_id" });
+    .upsert(toRow(sessionId, stamped(message)), {
+      onConflict: "session_id,ui_id",
+    });
 
   if (error) throw new Error(error.message);
 }
