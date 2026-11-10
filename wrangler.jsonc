@@ -29,7 +29,7 @@
   // `.dev.vars` (local); `.dev.vars` also overrides these values locally.
   "vars": {
     // Chat agent model: AI_PROVIDER, retried on AI_FALLBACK_PROVIDER when it fails.
-    "AI_PROVIDER": "gemini",
+    "AI_PROVIDER": "anthropic",
     "AI_FALLBACK_PROVIDER": "groq",
     "SUPABASE_URL": "https://ydpvxgjfcftaipcpirph.supabase.co",
     "SUPABASE_JWKS_URL": "https://ydpvxgjfcftaipcpirph.supabase.co/auth/v1/.well-known/jwks.json",
