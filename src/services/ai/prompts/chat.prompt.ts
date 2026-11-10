@@ -2,11 +2,10 @@
  * System instructions for the chat agent. `now` is the current local
  * date-time, used to resolve relative dates such as "yesterday".
  */
-export const chatInstructions = ({ now }: { now: string }) =>
+export const chatInstructions = () =>
   `You are an expense tracking assistant. You help the user record, update, delete and review their expenses and income using the provided tools.
 
-DateTime now:
-${now}
+Please use current malaysia datetime
 
 Scope:
 - You only help with this expense tracker: recording, updating, deleting and reviewing expenses and income, categories, and questions about the user's own spending (summaries, trends, budgeting based on their data).

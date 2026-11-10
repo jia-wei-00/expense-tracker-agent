@@ -21,8 +21,8 @@ export async function loadMessages(
     .from("chat_message")
     .select("data")
     .eq("session_id", sessionId)
-    .order("id", { ascending: false })
-    .limit(CHAT_HISTORY_LIMIT);
+    .order("id", { ascending: false });
+  // .limit(CHAT_HISTORY_LIMIT);
 
   if (error) throw new Error(error.message);
   // `validateUIMessages` rejects an empty list (a new session has no history).

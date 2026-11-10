@@ -29,7 +29,11 @@ const { generateText } = wrapAISDK(ai);
 const generateMessageId = createIdGenerator({ prefix: "msg", size: 16 });
 
 /** Attaches token usage to the assistant message once the stream finishes. */
-function usageMetadata({ part }: { part: TextStreamPart<ToolSet> }): TChatMessageMetadata | undefined {
+function usageMetadata({
+  part,
+}: {
+  part: TextStreamPart<ToolSet>;
+}): TChatMessageMetadata | undefined {
   return part.type === "finish"
     ? {
         usage: {
@@ -53,7 +57,8 @@ export async function aiChat(c: TValidContext<TAiChat>) {
   const { sessionId } = body;
 
   try {
-    if (!userClaims) throw new ChatError(HTTP_STATUS.UNAUTHORIZED, "Not authenticated");
+    if (!userClaims)
+      throw new ChatError(HTTP_STATUS.UNAUTHORIZED, "Not authenticated");
     const agent = chatAgent(c);
     const messages = await prepareTurn(
       supabase,
@@ -77,7 +82,8 @@ export async function aiChat(c: TValidContext<TAiChat>) {
         if (responseMessage.parts.length === 0) return;
         c.executionCtx.waitUntil(
           saveMessage(supabaseAdmin, sessionId, responseMessage).catch(
-            (error: unknown) => console.error("aiChat: saving reply failed:", error),
+            (error: unknown) =>
+              console.error("aiChat: saving reply failed:", error),
           ),
         );
       },
@@ -105,7 +111,8 @@ export async function aiScan(c: TValidContext<TAiScan>) {
   const { supabaseAdmin, userClaims } = c.var.supabaseContext;
 
   try {
-    if (!userClaims) throw new ChatError(HTTP_STATUS.UNAUTHORIZED, "Not authenticated");
+    if (!userClaims)
+      throw new ChatError(HTTP_STATUS.UNAUTHORIZED, "Not authenticated");
     await consumeAiUsage(supabaseAdmin, userClaims.id, "scan");
     const categories = await getCategories(c);
     const { output } = await generateText({

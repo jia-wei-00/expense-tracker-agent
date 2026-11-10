@@ -1,4 +1,5 @@
 import {
+  getAnthropicConfig,
   getGeminiConfig,
   getGroqConfig,
   getMercuryConfig,
@@ -16,16 +17,18 @@ import { createGoogle } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { wrapLanguageModel } from "ai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 
 const PROVIDERS = [
   "gemini",
   "mercury",
   "nvidia",
   "groq",
+  "anthropic",
 ] as const satisfies readonly TProvider[];
 
-const isProvider = (value: unknown): value is TProvider =>
-  PROVIDERS.includes(value as TProvider);
+const isProvider = (value: TProvider): value is TProvider =>
+  PROVIDERS.includes(value);
 
 /**
  * Returns the language model for `provider`, retried on `fallback` when the
@@ -67,6 +70,9 @@ const buildModel = ({ provider, env }: TBuildModel): TLanguageModel => {
     case "groq":
       const { apiKey: groqKey, model: groqModel } = getGroqConfig(env);
       return createGroq({ apiKey: groqKey })(groqModel);
+    case "anthropic":
+      const { apiKey: antKey, model: antModel } = getAnthropicConfig(env);
+      return createAnthropic({ apiKey: antKey })(antModel);
     case "gemini":
     default:
       const { apiKey, model } = getGeminiConfig(env);

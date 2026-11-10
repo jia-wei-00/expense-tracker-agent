@@ -17,7 +17,7 @@ const { ToolLoopAgent } = wrapAISDK(ai);
 export const chatAgent = (c: TContext) => {
   const agent = new ToolLoopAgent({
     model: getModel({ c }),
-    instructions: chatInstructions({ now: getDateTimeNow() }),
+    instructions: chatInstructions(),
     tools: expenseTools(c),
     stopWhen: isStepCount(AGENT_MAX_STEPS),
   });

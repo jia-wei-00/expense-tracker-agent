@@ -7,7 +7,7 @@ import type {
 import type { TAppBindings, TContext } from "@/types/common";
 import type { ToolLoopAgentSettings, wrapLanguageModel } from "ai";
 
-export type TProvider = "gemini" | "mercury" | "nvidia" | "groq";
+export type TProvider = "gemini" | "mercury" | "nvidia" | "groq" | "anthropic";
 export type TInputType = string | AgentInputItem[];
 
 export type TBuildAgent = Omit<AgentOptions, "model"> & {

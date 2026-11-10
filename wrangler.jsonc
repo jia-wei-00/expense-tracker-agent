@@ -43,6 +43,7 @@
     "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1",
     "NVIDIA_MODEL": "nvidia/nemotron-3-ultra-550b-a55b",
     "GROQ_MODEL": "qwen/qwen3.8-27b",
+    "ANTHROPIC_MODEL": "claude-haiku-5-5",
     "EMBEDDING_MODEL": "gemini-embedding-2",
     "FIREBASE_AUTH_DOMAIN": "portfoli-website-ab255.firebaseapp.com",
     "FIREBASE_PROJECT_ID": "portfoli-website-ab255",

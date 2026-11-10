@@ -40,3 +40,12 @@ export const getGroqConfig = (env: TAppBindings) => ({
     "https://generativelanguage.googleapis.com/v1beta/openai/",
   model: env.GROQ_MODEL || "qwen/qwen3.8-27b",
 });
+
+// ANTHROPIC
+export const getAnthropicConfig = (env: TAppBindings) => ({
+  apiKey: env.ANTHROPIC_API_KEY,
+  baseURL:
+    env.GOOGLE_GENERATIVE_BASE_URL ||
+    "https://generativelanguage.googleapis.com/v1beta/openai/",
+  model: env.ANTHROPIC_MODEL || "anthropic/claude-sonnet-5.5",
+});
