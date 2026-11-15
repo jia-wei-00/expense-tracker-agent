@@ -1,10 +1,17 @@
-import type { chatMetadataSchema, chatSchema, scanSchema } from "@/schemas/ai";
+import type {
+  chatMetadataSchema,
+  chatSchema,
+  scanResultSchema,
+  scanSchema,
+} from "@/schemas/ai";
 import type { chatAgent } from "@/services/ai/agents/chat.agent";
 import type { InferAgentUIMessage } from "ai";
 import type { z } from "zod";
 
 export type TAiChat = z.infer<typeof chatSchema>;
 export type TAiScan = z.infer<typeof scanSchema>;
+export type TScanResult = z.infer<typeof scanResultSchema>;
+export type TScanExpense = TScanResult["expenses"][number];
 export type TApproval = Extract<TAiChat, { approvals: unknown }>["approvals"][number];
 
 export type TChatMessageMetadata = z.infer<typeof chatMetadataSchema>;

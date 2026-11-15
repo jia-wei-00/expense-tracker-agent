@@ -1,31 +1,22 @@
 import { HTTP_STATUS } from "@/constants/error";
 import { errorResponse, successResponse } from "@/libs/response";
-import { addExpenseSchema } from "@/schemas/expense";
 import { chatAgent } from "@/services/ai/agents/chat.agent";
 import { ChatError } from "@/services/ai/chat/chat.error";
 import { saveMessage } from "@/services/ai/chat/message.service";
 import { toModelHistory } from "@/services/ai/chat/model-input.service";
 import { prepareTurn } from "@/services/ai/chat/turn.service";
-import { scanInstructions } from "@/services/ai/prompts/scan.prompt";
-import { getCategories } from "@/services/ai/tools/expense.tools";
+import { scanReceipt } from "@/services/ai/scan/scan.service";
 import { consumeAiUsage } from "@/services/subscription/usage.service";
 import type { TAiChat, TAiScan, TChatMessageMetadata } from "@/types/ai";
 import type { TValidContext } from "@/types/common";
-import { getDateTimeNow } from "@/utils/date";
-import { getModel } from "@/utils/model";
-import * as ai from "ai";
 import {
   consumeStream,
   createAgentUIStreamResponse,
   createIdGenerator,
   NoObjectGeneratedError,
   NoOutputGeneratedError,
-  Output,
 } from "ai";
 import type { TextStreamPart, ToolSet } from "ai";
-import { wrapAISDK } from "braintrust";
-
-const { generateText } = wrapAISDK(ai);
 
 const generateMessageId = createIdGenerator({ prefix: "msg", size: 16 });
 
@@ -104,31 +95,19 @@ export async function aiChat(c: TValidContext<TAiChat>) {
 }
 
 /**
- * `POST /ai/scan`. Stateless receipt extraction: returns a proposed expense for
- * the client to review in its add-expense form. Nothing is written.
+ * `POST /ai/scan`. Stateless receipt extraction: returns proposed expense rows,
+ * one per category, for the client to review. Nothing is written.
  */
 export async function aiScan(c: TValidContext<TAiScan>) {
-  const { url, mediaType } = c.req.valid("json");
   const { supabaseAdmin, userClaims } = c.var.supabaseContext;
 
   try {
     if (!userClaims)
       throw new ChatError(HTTP_STATUS.UNAUTHORIZED, "Not authenticated");
     await consumeAiUsage(supabaseAdmin, userClaims.id, "scan");
-    const categories = await getCategories(c);
-    const { output } = await generateText({
-      model: getModel({ c, provider: "gemini" }),
-      output: Output.object({ schema: addExpenseSchema }),
-      system: scanInstructions({ now: getDateTimeNow(), categories }),
-      messages: [
-        {
-          role: "user",
-          content: [{ type: "file", data: new URL(url), mediaType }],
-        },
-      ],
-    });
+    const expenses = await scanReceipt(c, c.req.valid("json"));
 
-    return successResponse(c, { data: output });
+    return successResponse(c, { data: expenses });
   } catch (error) {
     if (error instanceof ChatError) {
       return errorResponse(c, {

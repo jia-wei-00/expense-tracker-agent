@@ -18,11 +18,23 @@ import {
 } from "@/schemas/expense";
 import type { TContext } from "@/types/common";
 import type { TablesUpdate } from "@/types/database";
+import { sortKeys, toJson } from "@/utils/json";
 import { tool } from "ai";
 
 /** Best-effort human-readable message from an unknown thrown value. */
 const toMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+
+/**
+ * A tool result as the model sees it, keys sorted. Replayed history comes from
+ * `chat_message` (`jsonb`, which reorders keys), and Anthropic rejects a
+ * thinking block once an earlier tool result's text changes, so the live run
+ * and every replay must render the same text.
+ */
+const toModelOutput = ({ output }: { output: unknown }) => ({
+  type: "json" as const,
+  value: sortKeys(toJson(output)),
+});
 
 /**
  * The user's expense/income categories, read through the per-user KV cache.
@@ -67,6 +79,7 @@ export const expenseTools = (c: TContext) => {
         "List the user's expense and income categories. Call this before add/update so you can pass the correct category id.",
       inputSchema: listCategoriesSchema,
       outputSchema: listCategoriesOutputSchema,
+      toModelOutput,
       execute: async () => {
         try {
           return { ok: true, data: await getCategories(c) };
@@ -82,6 +95,7 @@ export const expenseTools = (c: TContext) => {
         "List the user's expense/income records, newest first, with optional filters.",
       inputSchema: listExpensesSchema,
       outputSchema: listExpensesOutputSchema,
+      toModelOutput,
       execute: async ({ from, to, category, is_expense, limit }) => {
         let query = supabase
           .from("expense")
@@ -108,6 +122,7 @@ export const expenseTools = (c: TContext) => {
       description: "Fetch a single expense/income record by id.",
       inputSchema: getExpenseSchema,
       outputSchema: getExpenseOutputSchema,
+      toModelOutput,
       execute: async ({ id }) => {
         const { data, error } = await supabase
           .from("expense")
@@ -130,6 +145,7 @@ export const expenseTools = (c: TContext) => {
         "Get the user's balance, total income and total expenses for an optional year/month.",
       inputSchema: getExpenseSummarySchema,
       outputSchema: getExpenseSummaryOutputSchema,
+      toModelOutput,
       execute: async ({ year, month }) => {
         if (!userId) return { ok: false, error: "Not authenticated" };
 
@@ -157,6 +173,7 @@ export const expenseTools = (c: TContext) => {
         "Create one or more expense/income records in a single call (one approval for all). Returns the created records. Requires human approval before it is written.",
       inputSchema: addExpensesSchema,
       outputSchema: addExpenseOutputSchema,
+      toModelOutput,
       needsApproval: true,
       execute: async ({ expenses }) => {
         // One bulk insert: PostgREST writes the whole batch or none of it.
@@ -176,6 +193,7 @@ export const expenseTools = (c: TContext) => {
         "Update an existing expense/income record. Requires human approval before it is written.",
       inputSchema: updateExpenseSchema,
       outputSchema: updateExpenseOutputSchema,
+      toModelOutput,
       needsApproval: true,
       execute: async ({
         id,
@@ -217,6 +235,7 @@ export const expenseTools = (c: TContext) => {
         "Delete one or more expense/income records by id in a single call (one approval for all). Returns the deleted ids; ids that were not found are listed in `error`. Requires human approval before it is written.",
       inputSchema: deleteExpenseSchema,
       outputSchema: deleteExpenseOutputSchema,
+      toModelOutput,
       needsApproval: true,
       execute: async ({ ids }) => {
         const { data, error } = await supabase

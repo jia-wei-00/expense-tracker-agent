@@ -30,7 +30,7 @@
   "vars": {
     // Chat agent model: AI_PROVIDER, retried on AI_FALLBACK_PROVIDER when it fails.
     "AI_PROVIDER": "anthropic",
-    "AI_FALLBACK_PROVIDER": "groq",
+    "AI_FALLBACK_PROVIDER": "gemini",
     "SUPABASE_URL": "https://ydpvxgjfcftaipcpirph.supabase.co",
     "SUPABASE_JWKS_URL": "https://ydpvxgjfcftaipcpirph.supabase.co/auth/v1/.well-known/jwks.json",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_GY_OEyl69swkAQyWNFJwVg_1jW3vsSn",

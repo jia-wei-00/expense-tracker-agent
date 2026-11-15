@@ -112,18 +112,27 @@ export async function applyApprovals(
   }
 
   // Every pending call has a decision (checked above); a miss would deny.
-  const updated = await resolvePending(admin, sessionId, last, (part) => {
-    const approved = decisions.get(part.toolCallId) === true;
-    return {
-      ...part,
-      state: "approval-responded",
-      approval: {
-        ...part.approval,
-        approved,
-        reason: approved ? undefined : REJECTED_REASON,
-      },
-    };
-  });
+  // A rejection is stored as `output-denied` right away: the SDK then renders
+  // it the same way during this run as on every replay from `chat_message`
+  // (an `approval-responded` denial renders differently once reloaded, which
+  // invalidates Anthropic's thinking blocks that follow it).
+  const updated = await resolvePending(admin, sessionId, last, (part) =>
+    decisions.get(part.toolCallId) === true
+      ? {
+          ...part,
+          state: "approval-responded",
+          approval: { ...part.approval, approved: true },
+        }
+      : {
+          ...part,
+          state: "output-denied",
+          approval: {
+            ...part.approval,
+            approved: false,
+            reason: REJECTED_REASON,
+          },
+        },
+  );
 
   if (!updated) {
     throw new ChatError(HTTP_STATUS.CONFLICT, "Approval already answered");

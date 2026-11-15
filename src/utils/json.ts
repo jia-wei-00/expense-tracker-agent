@@ -11,3 +11,22 @@ import type { Json } from "@/types/database";
  */
 export const toJson = (value: unknown): Json =>
   z.json().parse(JSON.parse(JSON.stringify(value)));
+
+/**
+ * `value` with every object's keys in sorted order, at every depth. Postgres
+ * `jsonb` does not keep key order, so a value read back from a `jsonb` column
+ * only serializes to the same text as the original once both are sorted.
+ */
+export const sortKeys = (value: Json): Json => {
+  if (Array.isArray(value)) return value.map((item) => sortKeys(item));
+  if (value === null || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => {
+        const item = value[key];
+        return [key, item === undefined ? item : sortKeys(item)];
+      }),
+  );
+};

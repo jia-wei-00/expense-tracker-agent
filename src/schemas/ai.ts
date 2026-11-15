@@ -1,3 +1,4 @@
+import { addExpenseSchema } from "@/schemas/expense";
 import { z } from "zod";
 
 const textPartSchema = z.object({
@@ -54,8 +55,22 @@ export const chatMetadataSchema = z.object({
     .optional(),
 });
 
-/** `POST /ai/scan`: a receipt image to extract a single expense from. */
+/** `POST /ai/scan`: a receipt image to extract expenses from. */
 export const scanSchema = z.object({
   url: z.url({ protocol: /^(https|data)$/ }),
   mediaType: z.string().regex(/^image\//),
+});
+
+/** What the model reads off a receipt: one expense per category, plus the paid total. */
+export const scanResultSchema = z.object({
+  total: z
+    .number()
+    .positive()
+    .describe(
+      "Amount actually paid, after tax, service charge, discounts and rounding.",
+    ),
+  expenses: z
+    .array(addExpenseSchema)
+    .min(1)
+    .describe("One record per category on the receipt."),
 });

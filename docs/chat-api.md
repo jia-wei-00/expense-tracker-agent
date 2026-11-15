@@ -64,8 +64,9 @@ pending call in the last assistant message must be answered in one request:
 ```
 
 The server executes approved calls with the **stored** arguments and streams the
-continuation of the same assistant message. Sending a new message instead
-cancels the pending calls (`state: "output-denied"`).
+continuation of the same assistant message. A rejected call is stored as
+`state: "output-denied"`; sending a new message instead cancels the pending
+calls the same way.
 
 **Errors** (`application/problem+json`, returned before streaming starts)
 
@@ -130,13 +131,24 @@ Stateless receipt extraction; nothing is stored.
 { "url": "https://… or data:image/jpeg;base64,…", "mediaType": "image/jpeg" }
 ```
 
-Response:
+Response: one proposed `expense` row per category on the receipt (at least one):
 
 ```json
 {
   "success": true,
-  "data": { "name": "pants", "amount": 52.11, "category": 3, "is_expense": true, "spend_date": "2026-10-10T00:00:00" }
+  "data": [
+    { "name": "groceries", "amount": 42.3, "category": 3, "is_expense": true, "spend_date": "2026-11-15T14:05:22" },
+    { "name": "detergent & tissue", "amount": 18.9, "category": 7, "is_expense": true, "spend_date": "2026-11-15T14:05:22" }
+  ]
 }
 ```
+
+- Each entry has the shape of an `expense` insert row; the client adds its own
+  `client_id` (`id`, `user_id`, `created_at` come from the database).
+- Amounts add up to the paid total (tax, service charge, discounts and rounding
+  included).
+- `spend_date` is Malaysia local `YYYY-MM-DDTHH:mm:ss` with no offset, the
+  format of the `expense.spend_date` column (`timestamp without time zone`). All
+  entries share it; a receipt with a date but no time gives `T00:00:00`.
 
 `422` when no expense could be read from the image.
