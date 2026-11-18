@@ -5,7 +5,7 @@ import {
   getMercuryConfig,
   getNvidiaConfig,
 } from "@/constants/model-config";
-import {
+import type {
   TBuildModel,
   TBuildOpenAICompatible,
   TLanguageModel,
@@ -112,8 +112,6 @@ const withFallback = ({ model, fallback, from, to }: TWithFallback) => {
   return wrapLanguageModel({
     model,
     middleware: {
-      // Download file URLs up front so either provider can read them.
-      overrideSupportedUrls: () => ({}),
       wrapGenerate: async ({ doGenerate, params }) => {
         try {
           return await doGenerate();

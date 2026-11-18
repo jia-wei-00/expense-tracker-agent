@@ -54,7 +54,7 @@ These are what `typecheck` / `lint` report today (2026-10-18). Fix each one when
 ### Types
 - `src/types/*.d.ts` (`validation`, `utils/model`) should be `.ts` files.
 - `src/types/utils/model.d.ts:1-6` imports `@openai/agents`, which isn't installed, so everything built on it is `any`. Its agent types (`TInputType`, `TBuildAgent`, `TCreateAgent`, `TRunAgent`, `TResumeAgent`) are unused; delete them and rewrite `TSwitchProvider` as `{ c; provider?; fallback? }`.
-- `src/utils/model.ts:7-14`: value imports used only as types. Use `import type`. Once `utils/model.ts` is fixed, add `"verbatimModuleSyntax": true` to `tsconfig.json`. Turning it on now breaks `wrangler deploy`: esbuild then keeps the import of `@/types/utils/model`, a `.d.ts` with no runtime file.
+- `tsconfig.json` lacks `"verbatimModuleSyntax": true`. `utils/model.ts` now uses `import type`, so it can be turned on; check `wrangler deploy --dry-run` still bundles (esbuild must not keep an import of `@/types/utils/model`, a `.d.ts` with no runtime file).
 - `src/types/validation.d.ts:1`: `ValidationErrorItem` is unused and lacks the `T` prefix.
 - `src/constants/model-config.ts:7-41`: wrangler types each var as its literal value, so every `env.X || "default"` fallback is dead code to the compiler. Read optional config through a schema or drop the fallback.
 
