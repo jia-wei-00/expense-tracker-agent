@@ -1,10 +1,13 @@
 import type {
   addExpenseOutputSchema,
   addExpenseSchema,
+  addExpensesSchema,
+  deleteExpenseSchema,
   getExpenseOutputSchema,
   getExpenseSummaryOutputSchema,
   getExpenseSummarySchema,
   listExpensesSchema,
+  updateExpenseSchema,
 } from "@/schemas/expense";
 import type { TSupabaseClient } from "@/types/common";
 import type { TablesUpdate } from "@/types/database";
@@ -29,6 +32,9 @@ export type TCategory = TCategoryOption;
 export type TListExpensesInput = z.infer<typeof listExpensesSchema>;
 export type TGetExpenseSummaryInput = z.infer<typeof getExpenseSummarySchema>;
 export type TAddExpenseInput = z.infer<typeof addExpenseSchema>;
+export type TAddExpensesInput = z.infer<typeof addExpensesSchema>;
+export type TUpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
+export type TDeleteExpenseInput = z.infer<typeof deleteExpenseSchema>;
 
 /** The columns `updateExpense` may change; never `id` or `user_id`. */
 export type TExpensePatch = Pick<

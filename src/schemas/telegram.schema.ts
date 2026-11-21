@@ -39,7 +39,10 @@ export const telegramCallbackQuerySchema = z.looseObject({
   id: z.string(),
   from: userSchema,
   data: z.string().optional(),
-  message: z.looseObject({ message_id: z.number(), chat: chatSchema }).optional(),
+  // `text` is the card as shown; absent when the message is no longer accessible.
+  message: z
+    .looseObject({ message_id: z.number(), chat: chatSchema, text: z.string().optional() })
+    .optional(),
 });
 
 export const telegramUpdateSchema = z.looseObject({

@@ -20,7 +20,8 @@ function isPending(part: TChatMessagePart): part is TPendingToolPart {
   return isToolUIPart(part) && part.state === "approval-requested";
 }
 
-function pendingApprovals(message: TChatMessage | undefined) {
+/** The tool calls of `message` still waiting for a decision; none unless it is an assistant message. */
+export function pendingApprovals(message: TChatMessage | undefined) {
   return message?.role === "assistant" ? message.parts.filter(isPending) : [];
 }
 

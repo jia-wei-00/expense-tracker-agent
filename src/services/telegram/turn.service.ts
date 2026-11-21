@@ -7,11 +7,12 @@ import { appendMessage, loadMessages, saveMessage } from "@/services/ai/chat/mes
 import { runAgent } from "@/services/ai/chat/run.service";
 import { createLedger } from "@/services/ledger/ledger.service";
 import { consumeAiUsage } from "@/services/subscription/usage.service";
+import { offerApproval } from "@/services/telegram/approval.service";
 import { userParts } from "@/services/telegram/media.service";
 import { linkedUserId } from "@/services/telegram/link.service";
 import { replyText, sendReply, withTyping } from "@/services/telegram/render.service";
 import { currentSession, startSession, titleSession } from "@/services/telegram/session.service";
-import type { TChatMessage, TChatTools } from "@/types/ai";
+import type { TChatAgent, TChatMessage, TChatTools } from "@/types/ai";
 import type { TSupabaseAdminClient } from "@/types/common";
 import type {
   TDmTurn,
@@ -100,9 +101,9 @@ async function prepareDmTurn(
   const latest = await currentSession(admin, scope);
   const history = latest ? await loadMessages(admin, latest.id, tools) : [];
   const state = turnResumeState(history, userMessage.id);
-  if (state === "duplicate") {
+  if (state === "duplicate" && latest) {
     const reply = savedReply(history, userMessage.id);
-    return reply ? { kind: "resend", reply } : { kind: "skip" };
+    return reply ? { kind: "resend", sessionId: latest.id, reply } : { kind: "skip" };
   }
   if (state === "resume" && latest) return { kind: "run", sessionId: latest.id, messages: history };
 
@@ -118,6 +119,23 @@ async function prepareDmTurn(
   const resolved = continues ? await supersedeApprovals(admin, sessionId, history) : [];
   const saved = await appendMessage(admin, sessionId, userMessage);
   return { kind: "run", sessionId, messages: [...resolved, saved] };
+}
+
+/**
+ * The reply to send: the stored one for a resend, else a fresh run, stored
+ * (with its row id, for an approval card) before anything is sent.
+ */
+async function produceReply(
+  { admin, telegram }: TTelegramDeps,
+  turn: Extract<TDmTurn, { kind: "run" | "resend" }>,
+  { agent, chatId }: { agent: TChatAgent; chatId: number },
+): Promise<{ reply?: TChatMessage; rowId?: number }> {
+  if (turn.kind === "resend") return { reply: turn.reply };
+  const reply = await withTyping(telegram, chatId, () =>
+    runAgent({ agent, messages: turn.messages, download: telegram.downloadFile }),
+  );
+  if (!reply || reply.parts.length === 0) return { reply };
+  return { reply, rowId: await saveMessage(admin, turn.sessionId, reply) };
 }
 
 /**
@@ -165,12 +183,8 @@ export async function handleDmMessage(
     return;
   }
 
-  const reply =
-    turn.kind === "resend"
-      ? turn.reply
-      : await withTyping(telegram, chatId, () => runAgent({ agent, messages: turn.messages, download: telegram.downloadFile }));
-  if (turn.kind === "run" && reply && reply.parts.length > 0) {
-    await saveMessage(admin, turn.sessionId, reply);
-  }
+  const { reply, rowId } = await produceReply({ env, admin, telegram }, turn, { agent, chatId });
   await sendReply(telegram, { chatId, replyTo: message.message_id, text: replyText(reply) });
+  // A resent reply still waiting on a decision gets its card again.
+  await offerApproval({ admin, telegram }, { chatId, sessionId: turn.sessionId, reply, rowId, ledger });
 }

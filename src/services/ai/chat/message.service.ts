@@ -76,17 +76,23 @@ export async function appendMessage(
   return saved;
 }
 
-/** Inserts or replaces a message by id (assistant replies and continuations). */
+/**
+ * Inserts or replaces a message by id (assistant replies and continuations)
+ * and returns its `chat_message.id`, which a continuation keeps.
+ */
 export async function saveMessage(
   admin: TSupabaseAdminClient,
   sessionId: string,
   message: TChatMessage,
-) {
-  const { error } = await admin
+): Promise<number> {
+  const { data, error } = await admin
     .from("chat_message")
     .upsert(toRow(sessionId, stamped(message)), {
       onConflict: "session_id,ui_id",
-    });
+    })
+    .select("id")
+    .single();
 
   if (error) throw new Error(error.message);
+  return data.id;
 }

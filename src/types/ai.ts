@@ -16,6 +16,8 @@ export type TApproval = Extract<TAiChat, { approvals: unknown }>["approvals"][nu
 
 export type TChatMessageMetadata = z.infer<typeof chatMetadataSchema>;
 
+export type TChatAgent = ReturnType<typeof chatAgent>;
+
 /** Tools of the chat agent; stored tool parts are validated against these. */
 export type TChatTools = ReturnType<typeof chatAgent>["tools"];
 

@@ -10,8 +10,10 @@ import type {
   updateKindSchema,
 } from "@/schemas/telegram.schema";
 import type { z } from "zod";
-import type { TChatMessage, TChatMessagePart } from "@/types/ai";
+import type { TChatAgent, TChatMessage, TChatMessagePart } from "@/types/ai";
 import type { TAppBindings, TSupabaseAdminClient } from "@/types/common";
+import type { Tables } from "@/types/database";
+import type { TLedger } from "@/types/ledger";
 
 export type TTelegramUpdate = z.infer<typeof telegramUpdateSchema>;
 export type TTelegramMessage = z.infer<typeof telegramMessageSchema>;
@@ -62,9 +64,32 @@ export type TTurnResumeState = "new" | "resume" | "duplicate";
 export type TDmTurn =
   | { kind: "run"; sessionId: string; messages: TChatMessage[] }
   | { kind: "refuse"; copy: string }
-  | { kind: "resend"; reply: TChatMessage }
+  | { kind: "resend"; sessionId: string; reply: TChatMessage }
   | { kind: "skip" };
 
 /** A part of a user message built from a Telegram message. */
 export type TUserPart = Extract<TChatMessagePart, { type: "text" | "file" }>;
 export type TDownloadFile = TTelegramClient["downloadFile"];
+
+/** The session columns that decide who may answer an approval card. */
+export type TCardSession = Pick<Tables<"chat_session">, "user_id" | "telegram_chat_id" | "telegram_user_id">;
+/** The Telegram message an approval card was sent as. */
+export type TCardMessage = { chatId: number; messageId: number; text?: string };
+/**
+ * What a tap on an approval card leads to: `silent` (malformed), a `toast`
+ * that leaves the card as is, `closed` (a toast and the buttons removed), or
+ * the decision applied to the stored message.
+ */
+export type TCallbackOutcome =
+  | { kind: "silent" }
+  | { kind: "toast"; text: string }
+  | { kind: "closed"; card: TCardMessage; text: string }
+  | { kind: "rejected"; card: TCardMessage }
+  | {
+      kind: "approved";
+      card: TCardMessage;
+      sessionId: string;
+      messages: TChatMessage[];
+      agent: TChatAgent;
+      ledger: TLedger;
+    };

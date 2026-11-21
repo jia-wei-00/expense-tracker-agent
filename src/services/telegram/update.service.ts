@@ -1,4 +1,5 @@
 import { TELEGRAM_COPY } from "@/constants/telegram";
+import { handleCallback } from "@/services/telegram/approval.service";
 import { linkTelegram } from "@/services/telegram/link.service";
 import { handleDmMessage } from "@/services/telegram/turn.service";
 import type { TTelegramDeps, TTelegramUpdate } from "@/types/telegram";
@@ -30,7 +31,8 @@ export async function handleUpdate(deps: TTelegramDeps, update: TTelegramUpdate)
       }
       return;
     case "callback":
-      await reply(TELEGRAM_COPY.comingSoon);
+      // "callback" is only ever classified from a callback query.
+      if (update.callback_query) await handleCallback(deps, update.callback_query);
       return;
     case "ignore":
       return;
