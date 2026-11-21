@@ -17,7 +17,8 @@ Telegram is DM-only: messages from groups and channels are ignored.
    The token is single-use, 32 characters of `A-Za-z0-9_-`, and valid for 10
    minutes. Calling it again replaces the previous token.
 
-2. Open the deep link (`<bot>` is the bot's username without the `@`):
+2. Open the deep link (`<bot>` is the bot's username without the `@`; the app
+   keeps it in its own config, the Worker does not expose it):
 
    ```
    https://t.me/<bot>?start=<token>
@@ -69,14 +70,15 @@ the app reads under RLS, like in-app chats. They are told apart by
 
 | Command | Behavior |
 |---|---|
-| `/start <token>` | Links the account (above). |
-| `/new [text]` | Starts a fresh conversation; any text after the command is its first message. |
+| `/start <token>` | Links the account (above). A bare `/start` gets the link prompt, or the help text once linked. |
+| `/new [text]` | Starts a fresh conversation; any text after the command is its first message. Unanswered approvals in the previous conversation are cancelled. |
 | `/help` | Short usage text. |
 | any text / photo | One agent turn. Other media types get an "unsupported" reply. |
 
 Write tools (add, update, delete expenses) ask for approval with Approve /
 Reject buttons on the reply; the tap resolves it and the agent continues.
-Approvals expire after 10 minutes.
+Approvals expire after 10 minutes, and a new message cancels them. Photos are
+accepted as JPEG, PNG or WebP (sent as a photo or as an image file up to 8 MB).
 
 ## Webhook (server side, for reference)
 

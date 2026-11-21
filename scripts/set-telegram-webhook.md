@@ -28,6 +28,8 @@ Telegram's `secret_token` must be 1-256 characters of `A-Za-z0-9_-`:
 
 ```sh
 openssl rand -hex 32
+# or, without openssl:
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 Call the result `<WEBHOOK_SECRET>`.
@@ -39,11 +41,11 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN        # paste <BOT_TOKEN>
 npx wrangler secret put TELEGRAM_WEBHOOK_SECRET   # paste <WEBHOOK_SECRET>
 ```
 
-Set `TELEGRAM_BOT_USERNAME` in `wrangler.jsonc` `vars` to the bot's username
-without the `@` (it ships as `""` with a TODO). The app builds the
-`https://t.me/<bot>?start=<token>` link from it, so the link is broken until it
-is set. Then deploy; the first deploy also creates the `TelegramInbox` Durable
-Object (migration `v1`):
+The Worker needs no bot username. The app builds the
+`https://t.me/<bot>?start=<token>` link itself, so put the bot's username
+(without the `@`) in the app's own config; the app cannot read Worker vars.
+Then deploy; the first deploy also creates the `TelegramInbox` Durable Object
+(migration `v1`):
 
 ```sh
 npm run deploy
