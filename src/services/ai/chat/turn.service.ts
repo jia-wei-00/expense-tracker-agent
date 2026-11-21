@@ -10,7 +10,7 @@ import {
 } from "@/services/ai/chat/message.service";
 import {
   ensureSession,
-  sessionExists,
+  getSession,
 } from "@/services/ai/chat/session.service";
 import { consumeAiUsage } from "@/services/subscription/usage.service";
 import type { TAiChat, TChatMessage, TChatTools } from "@/types/ai";
@@ -35,9 +35,19 @@ export async function prepareTurn(
   tools: TChatTools,
 ): Promise<TChatMessage[]> {
   const { sessionId } = body;
+  const session = await getSession(supabase, sessionId);
+
+  // A Telegram conversation is never continued from the app: it may carry a
+  // group scope the app cannot reproduce. Checked before any quota or write.
+  if (session?.telegramChatId != null) {
+    throw new ChatError(
+      HTTP_STATUS.CONFLICT,
+      "This conversation belongs to Telegram",
+    );
+  }
 
   if ("approvals" in body) {
-    if (!(await sessionExists(supabase, sessionId))) {
+    if (session === null) {
       throw new ChatError(HTTP_STATUS.NOT_FOUND, "Chat session not found");
     }
     const history = await loadMessages(supabase, sessionId, tools);

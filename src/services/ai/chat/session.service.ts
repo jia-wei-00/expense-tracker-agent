@@ -4,19 +4,20 @@ import { ChatError } from "@/services/ai/chat/chat.error";
 import type { TChatMessage } from "@/types/ai";
 import type { TSupabaseClient } from "@/types/common";
 
-/** Whether `sessionId` exists and belongs to the user (RLS hides others). */
-export async function sessionExists(
-  supabase: TSupabaseClient,
-  sessionId: string,
-) {
+/**
+ * The session if it exists and belongs to the user (RLS hides others), else
+ * null. `telegramChatId` is set for conversations that live in Telegram.
+ */
+export async function getSession(supabase: TSupabaseClient, sessionId: string) {
   const { data, error } = await supabase
     .from("chat_session")
-    .select("id")
+    .select("telegram_chat_id")
     .eq("id", sessionId)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  return data !== null;
+  if (data === null) return null;
+  return { telegramChatId: data.telegram_chat_id };
 }
 
 /**
@@ -29,7 +30,7 @@ export async function ensureSession(
   sessionId: string,
   firstMessage: TChatMessage,
 ) {
-  if (await sessionExists(supabase, sessionId)) return;
+  if ((await getSession(supabase, sessionId)) !== null) return;
 
   const { error } = await supabase
     .from("chat_session")
