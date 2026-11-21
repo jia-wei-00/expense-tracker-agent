@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { HTTP_STATUS } from "@/constants/error";
 import { TELEGRAM_COPY } from "@/constants/telegram";
 import { ChatError } from "@/services/ai/chat/chat.error";
-import { approvalErrorToast, callbackToast, ownsCard } from "@/services/telegram/approval.service";
+import { approvalErrorToast, approvalState, callbackToast, ownsCard } from "@/services/telegram/approval.service";
+import type { TChatMessage, TChatMessagePart } from "@/types/ai";
 import type { TCardSession } from "@/types/telegram";
 
 describe("ownsCard", () => {
@@ -43,5 +44,54 @@ describe("callbackToast", () => {
     expect(callbackToast({ kind: "rejected", card })).toBeUndefined();
     expect(callbackToast({ kind: "silent" })).toBeUndefined();
     expect(callbackToast(undefined)).toBeUndefined();
+  });
+});
+
+describe("approvalState", () => {
+  const input = { ids: [12] };
+  const requested: TChatMessagePart = {
+    type: "tool-deleteExpense",
+    toolCallId: "call-1",
+    state: "approval-requested",
+    input,
+    approval: { id: "a-1" },
+  };
+  const responded: TChatMessagePart = {
+    type: "tool-deleteExpense",
+    toolCallId: "call-2",
+    state: "approval-responded",
+    input,
+    approval: { id: "a-2", approved: true },
+  };
+  const executed: TChatMessagePart = {
+    type: "tool-deleteExpense",
+    toolCallId: "call-3",
+    state: "output-available",
+    input,
+    output: { ok: true, data: [{ id: 12 }] },
+    approval: { id: "a-3", approved: true },
+  };
+  const denied: TChatMessagePart = {
+    type: "tool-deleteExpense",
+    toolCallId: "call-4",
+    state: "output-denied",
+    input,
+    approval: { id: "a-4", approved: false },
+  };
+  const assistant = (parts: TChatMessagePart[]): TChatMessage => ({ id: "msg-a", role: "assistant", parts });
+
+  it("is pending while any call waits for a decision", () => {
+    expect(approvalState(assistant([requested, { ...requested, toolCallId: "call-5" }]))).toBe("pending");
+  });
+
+  it("is approved-unexecuted when approved calls have no output yet", () => {
+    expect(approvalState(assistant([responded, { ...responded, toolCallId: "call-6" }]))).toBe("approved-unexecuted");
+    expect(approvalState(assistant([executed, responded]))).toBe("approved-unexecuted");
+  });
+
+  it("is settled once every call has an output or was denied", () => {
+    expect(approvalState(assistant([executed, denied]))).toBe("settled");
+    expect(approvalState(assistant([{ type: "text", text: "hi" }]))).toBe("settled");
+    expect(approvalState(undefined)).toBe("settled");
   });
 });

@@ -61,6 +61,14 @@ describe("createTelegramClient edits and downloads", () => {
     );
   });
 
+  it("editMessageText swallows 'message is not modified' (a retried edit)", async () => {
+    const { fetch } = fakeFetch([
+      { ok: false, description: "Bad Request: message is not modified" },
+    ]);
+    const tg = createTelegramClient({ token: "T0K", fetch });
+    await expect(tg.editMessageText(5, 9, "card")).resolves.toBeUndefined();
+  });
+
   it("downloadFile resolves bytes and media type", async () => {
     const { fetch, calls } = fakeFetch([
       { ok: true, result: { file_path: "photos/a.jpg" } },

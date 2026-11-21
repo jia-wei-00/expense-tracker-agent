@@ -19,6 +19,7 @@ import type { TChatMessage } from "@/types/ai";
 import type { TSupabaseAdminClient } from "@/types/common";
 import type { TLedger } from "@/types/ledger";
 import type {
+  TApprovalState,
   TCallbackOutcome,
   TCardMessage,
   TCardSession,
@@ -28,6 +29,7 @@ import type {
   TTelegramSessionScope,
 } from "@/types/telegram";
 import { parseCallbackData } from "@/utils/telegram";
+import { isToolUIPart } from "ai";
 
 /** True only when the card's session is this user's conversation in this Telegram chat. */
 export function ownsCard(session: TCardSession | null, scope: TTelegramSessionScope): boolean {
@@ -37,6 +39,19 @@ export function ownsCard(session: TCardSession | null, scope: TTelegramSessionSc
     session.telegram_chat_id === scope.chatId &&
     session.telegram_user_id === scope.telegramUserId
   );
+}
+
+/**
+ * Where the decision on a card's message stands: calls still waiting
+ * (`pending`), approved but not yet run (`approved-unexecuted`: the
+ * continuation failed after the decision was stored), or done (`settled`).
+ */
+export function approvalState(message: TChatMessage | undefined): TApprovalState {
+  if (pendingApprovals(message).length > 0) return "pending";
+  const unexecuted =
+    message?.role === "assistant" &&
+    message.parts.some((part) => isToolUIPart(part) && part.state === "approval-responded" && part.approval.approved);
+  return unexecuted ? "approved-unexecuted" : "settled";
 }
 
 /** The toast for an `applyApprovals` refusal; `undefined` for any other error. */
@@ -111,9 +126,29 @@ async function hasActivePlan(admin: TSupabaseAdminClient, userId: string): Promi
 }
 
 /**
+ * Stores the tap's decision for every pending call of the last message
+ * (single-use, 10-minute expiry); a 409/410 becomes a toast.
+ */
+async function applyDecision(
+  admin: TSupabaseAdminClient,
+  approve: boolean,
+  { card, sessionId, messages: history, agent, ledger }: Extract<TCallbackOutcome, { kind: "approved" }>,
+): Promise<TCallbackOutcome> {
+  const approvals = pendingApprovals(history.at(-1)).map(({ toolCallId }) => ({ callId: toolCallId, approve }));
+  try {
+    const messages = await applyApprovals(admin, sessionId, history, approvals);
+    return approve ? { kind: "approved", card, sessionId, messages, agent, ledger } : { kind: "rejected", card };
+  } catch (error) {
+    const text = approvalErrorToast(error);
+    if (text === undefined) throw error;
+    return { kind: "closed", card, text };
+  }
+}
+
+/**
  * Checks a tap and applies its decision to the stored message (spec §5.4).
  * Only `ChatError` refusals become toasts; anything else throws so the inbox
- * retries, and a retry after the decision was stored is a 409, never a rerun.
+ * retries.
  */
 async function decideCallback({ env, admin }: TTelegramDeps, query: TTelegramCallbackQuery): Promise<TCallbackOutcome> {
   const data = parseCallbackData(query.data ?? "");
@@ -133,19 +168,18 @@ async function decideCallback({ env, admin }: TTelegramDeps, query: TTelegramCal
   // `applyApprovals` resolves the last message; a newer turn superseded this card.
   if (history.at(-1)?.id !== row.ui_id) return { kind: "closed", card, text: TELEGRAM_COPY.approvalAnswered };
 
-  const approvals = pendingApprovals(history.at(-1)).map(({ toolCallId }) => ({
-    callId: toolCallId,
-    approve: data.approve,
-  }));
-  try {
-    const messages = await applyApprovals(admin, row.session_id, history, approvals);
-    if (!data.approve) return { kind: "rejected", card };
-    return { kind: "approved", card, sessionId: row.session_id, messages, agent, ledger };
-  } catch (error) {
-    const text = approvalErrorToast(error);
-    if (text === undefined) throw error;
-    return { kind: "closed", card, text };
+  const sessionId = row.session_id;
+  // The approved outcome as the history stands; `applyDecision` resolves it first.
+  const resume = { kind: "approved", card, sessionId, messages: history, agent, ledger } as const;
+  // A retry whose approval was stored but whose continuation failed finishes
+  // it, so the approved write never runs late at the start of the next turn.
+  // Residual risk: if the tool's write succeeded and only `saveMessage`
+  // failed, this reruns the tool (a possible duplicate row), the same window
+  // as the app's `onEnd` save. A Reject tap never reaches this state.
+  if (approvalState(history.at(-1)) === "approved-unexecuted") {
+    return data.approve ? resume : { kind: "closed", card, text: TELEGRAM_COPY.approvalAnswered };
   }
+  return applyDecision(admin, data.approve, resume);
 }
 
 /** Best effort: the decision is already stored, so a failed toast must not fail it. */
@@ -161,7 +195,8 @@ async function answerQuietly(telegram: TTelegramClient, queryId: string, text?: 
  */
 async function closeCard(telegram: TTelegramClient, card: TCardMessage, suffix?: string): Promise<void> {
   try {
-    if (suffix !== undefined && card.text !== undefined) {
+    // A retried edit is a no-op ("not modified" is ignored); never append twice.
+    if (suffix !== undefined && card.text !== undefined && !card.text.endsWith(`\n\n${suffix}`)) {
       await telegram.editMessageText(card.chatId, card.messageId, `${card.text}\n\n${suffix}`);
     }
     await telegram.editMessageReplyMarkup(card.chatId, card.messageId);

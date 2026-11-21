@@ -66,6 +66,16 @@ async function downloadBytes(fetch: TFetch, token: string, filePath: string): Pr
   return new Uint8Array(await response.arrayBuffer());
 }
 
+/** An edit that changes nothing (e.g. a retried one) already has the wanted result. */
+async function ignoreNotModified(edit: Promise<unknown>): Promise<void> {
+  try {
+    await edit;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes(NOT_MODIFIED)) return;
+    throw error;
+  }
+}
+
 function sendMessagePayload({ chatId, text, replyTo, buttons }: TSendMessageInput): object {
   return {
     chat_id: chatId,
@@ -98,22 +108,17 @@ export function createTelegramClient({
     },
 
     async editMessageReplyMarkup(chatId, messageId) {
-      try {
-        await request("editMessageReplyMarkup", {
+      await ignoreNotModified(
+        request("editMessageReplyMarkup", {
           chat_id: chatId,
           message_id: messageId,
           reply_markup: { inline_keyboard: [] },
-        });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes(NOT_MODIFIED)) {
-          return;
-        }
-        throw error;
-      }
+        }),
+      );
     },
 
     async editMessageText(chatId, messageId, text) {
-      await request("editMessageText", { chat_id: chatId, message_id: messageId, text });
+      await ignoreNotModified(request("editMessageText", { chat_id: chatId, message_id: messageId, text }));
     },
 
     async downloadFile(fileId) {

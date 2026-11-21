@@ -73,6 +73,8 @@ export type TDownloadFile = TTelegramClient["downloadFile"];
 
 /** The session columns that decide who may answer an approval card. */
 export type TCardSession = Pick<Tables<"chat_session">, "user_id" | "telegram_chat_id" | "telegram_user_id">;
+/** Where the decision on an approval card's message stands (see `approvalState`). */
+export type TApprovalState = "pending" | "approved-unexecuted" | "settled";
 /** The Telegram message an approval card was sent as. */
 export type TCardMessage = { chatId: number; messageId: number; text?: string };
 /**
