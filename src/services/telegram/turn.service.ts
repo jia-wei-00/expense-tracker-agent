@@ -52,7 +52,7 @@ export function quotaCopy(error: unknown): string | undefined {
   if (error.status === HTTP_STATUS.PAYMENT_REQUIRED) return TELEGRAM_COPY.needsPlan;
   const quota = error.extensions?.quota;
   if (error.status === HTTP_STATUS.TOO_MANY_REQUESTS && typeof quota === "number") {
-    return TELEGRAM_COPY.quotaUsed(quota);
+    return TELEGRAM_COPY.quotaUsed.replace("{quota}", String(quota));
   }
   return undefined;
 }

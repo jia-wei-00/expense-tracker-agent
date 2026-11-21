@@ -10,17 +10,16 @@ import { scanReceipt } from "@/services/ai/scan/scan.service";
 import { createLedger } from "@/services/ledger/ledger.service";
 import { consumeAiUsage } from "@/services/subscription/usage.service";
 import type { TAiChat, TAiScan } from "@/types/ai";
-import type { TValidContext } from "@/types/common";
+import type { TContext, TValidContext } from "@/types/common";
 import {
   consumeStream,
   createAgentUIStreamResponse,
   NoObjectGeneratedError,
   NoOutputGeneratedError,
 } from "ai";
-import type { Context } from "hono";
 
 /** The problem+json response for a request-level `ChatError`. */
-function chatErrorResponse(c: Context, error: ChatError) {
+function chatErrorResponse(c: TContext, error: ChatError) {
   return errorResponse(c, {
     status: error.status,
     title: error.title,

@@ -16,9 +16,13 @@ function attachmentPart({ photo, document }: TTelegramMessage): TUserPart | "uns
   const largest = photo ? pickPhotoSize(photo) : undefined;
   if (largest) return filePart(PHOTO_MEDIA_TYPE, largest.file_id);
   if (document) {
-    const { mime_type: mediaType, file_id: fileId, file_size: fileSize = 0 } = document;
+    const { mime_type: mediaType, file_id: fileId, file_size: fileSize } = document;
+    // Without a size the download could be any size, so it is not accepted.
     const accepted =
-      mediaType !== undefined && ACCEPTED_IMAGE_TYPES.includes(mediaType) && fileSize <= IMAGE_MAX_BYTES;
+      mediaType !== undefined &&
+      ACCEPTED_IMAGE_TYPES.includes(mediaType) &&
+      fileSize !== undefined &&
+      fileSize <= IMAGE_MAX_BYTES;
     return accepted ? filePart(mediaType, fileId) : "unsupported";
   }
   return undefined;

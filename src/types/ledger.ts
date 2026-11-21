@@ -28,7 +28,6 @@ export type TLedgerScope = {
   userId: string;
 };
 
-export type TCategory = TCategoryOption;
 export type TListExpensesInput = z.infer<typeof listExpensesSchema>;
 export type TGetExpenseSummaryInput = z.infer<typeof getExpenseSummarySchema>;
 export type TAddExpenseInput = z.infer<typeof addExpenseSchema>;
@@ -61,7 +60,7 @@ export type TExpenseSummary = NonNullable<
  * method is scoped to one user; methods throw `Error` on a query error.
  */
 export type TLedger = {
-  categories: () => Promise<TCategory[]>;
+  categories: () => Promise<TCategoryOption[]>;
   listExpenses: (input: TListExpensesInput) => Promise<TLedgerExpense[]>;
   /** `null` when the record is missing or not the user's. */
   getExpense: (id: number) => Promise<TLedgerExpense | null>;

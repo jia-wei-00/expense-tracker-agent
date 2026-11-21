@@ -4,7 +4,7 @@ import { telegramWebhook } from "@/handlers/telegram.handler";
 import { revenuecatWebhook } from "@/handlers/webhook.handler";
 import { revenuecatAuth } from "@/middlewares/revenuecat-auth.middleware";
 import { telegramAuth } from "@/middlewares/telegram-auth.middleware";
-import { telegramUpdateValidator } from "@/middlewares/telegram-update.validator";
+import { telegramUpdateValidator } from "@/middlewares/telegram-update-validator.middleware";
 import zValidator from "@/middlewares/zod.validator";
 import { revenuecatWebhookSchema } from "@/schemas/revenuecat.schema";
 import type { TAppEnv } from "@/types/common";

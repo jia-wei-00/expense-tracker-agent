@@ -57,9 +57,7 @@
     "FIREBASE_MESSAGING_SENDER_ID": "716340810052",
     "FIREBASE_APP_ID": "1:716340810052:web:66e59a75109531ba8e4711",
     "TEAM_DOMAIN": "https://leongjw98.cloudflareaccess.com",
-    // Telegram bot (secrets TELEGRAM_BOT_TOKEN / TELEGRAM_WEBHOOK_SECRET are set
-    // with `wrangler secret put`; TELEGRAM_SKIP_IP_CHECK=true only in .dev.vars).
-    // TODO: the bot's @username without the "@", once the bot is created.
-    "TELEGRAM_BOT_USERNAME": "",
+    // Telegram bot: no vars. Secrets TELEGRAM_BOT_TOKEN / TELEGRAM_WEBHOOK_SECRET
+    // are set with `wrangler secret put`; TELEGRAM_SKIP_IP_CHECK=true only in .dev.vars.
   },
 }

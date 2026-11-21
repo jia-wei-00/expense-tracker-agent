@@ -24,9 +24,13 @@ const EXPENSE_WITH_CATEGORY =
   "id, name, amount, spend_date, is_expense, expense_category(name)";
 const EXPENSE_RECORD = "id, name, amount, spend_date, is_expense, category";
 
-/** The user's categories, read through the per-user KV cache. */
+/**
+ * The user's categories, read through the per-user KV cache. The key is
+ * versioned: values under the old key came from a loader that did not filter
+ * by `user_id`, and may hold other users' categories.
+ */
 const categories = ({ db, kv, userId }: TLedgerScope) =>
-  getOrSet(kv, cacheKey("categories", userId), CACHE_TTL.CATEGORIES, async () => {
+  getOrSet(kv, cacheKey("categories", "v2", userId), CACHE_TTL.CATEGORIES, async () => {
     const { data, error } = await db
       .from("expense_category")
       .select("id, name, is_expense")

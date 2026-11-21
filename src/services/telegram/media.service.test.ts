@@ -14,7 +14,7 @@ function photoMsg(caption: string, photo: ReturnType<typeof size>[]): TTelegramM
   return { ...base, caption, photo };
 }
 
-function documentMsg(mimeType: string | undefined, fileSize: number): TTelegramMessage {
+function documentMsg(mimeType: string | undefined, fileSize?: number): TTelegramMessage {
   return { ...base, document: { file_id: "D", mime_type: mimeType, file_size: fileSize } };
 }
 
@@ -46,6 +46,11 @@ describe("userParts", () => {
     expect(userParts(documentMsg("application/pdf", 1000))).toBe("unsupported");
     expect(userParts(documentMsg("image/png", 9 * MB))).toBe("unsupported");
     expect(userParts(documentMsg(undefined, 1000))).toBe("unsupported");
+  });
+
+  it("rejects HEIC and a document without a size", () => {
+    expect(userParts(documentMsg("image/heic", 1000))).toBe("unsupported");
+    expect(userParts(documentMsg("image/png"))).toBe("unsupported");
   });
 
   it("maps text, and an image document with its own mime type", () => {

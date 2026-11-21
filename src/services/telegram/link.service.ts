@@ -52,14 +52,17 @@ export async function linkTelegram(
   message: TTelegramMessage,
 ): Promise<void> {
   const chatId = message.chat.id;
+  // In a private chat the chat id is the user's id; `from` is just the explicit form.
+  const telegramUserId = message.from?.id ?? chatId;
   const token = parseStartToken(message.text ?? "");
   if (!token) {
-    await telegram.sendMessage({ chatId, text: TELEGRAM_COPY.unlinked });
+    // A bare `/start` (e.g. Telegram's Start button) from a linked account is not a link attempt.
+    const linked = (await linkedUserId(admin, telegramUserId)) !== undefined;
+    await telegram.sendMessage({ chatId, text: linked ? TELEGRAM_COPY.help : TELEGRAM_COPY.unlinked });
     return;
   }
 
-  // In a private chat the chat id is the user's id; `from` is just the explicit form.
-  const { outcome, text } = await attemptLink(admin, token, message.from?.id ?? chatId);
+  const { outcome, text } = await attemptLink(admin, token, telegramUserId);
   console.log(JSON.stringify({ log: "telegram_link", chat_id: chatId, outcome }));
   await telegram.sendMessage({ chatId, text });
 }
