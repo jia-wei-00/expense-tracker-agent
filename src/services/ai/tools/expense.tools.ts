@@ -1,261 +1,32 @@
-import { CACHE_TTL } from "@/constants/cache";
-import { cacheKey, getOrSet } from "@/libs/cache";
 import {
-  addExpenseOutputSchema,
-  addExpensesSchema,
-  deleteExpenseOutputSchema,
-  deleteExpenseSchema,
-  getExpenseOutputSchema,
-  getExpenseSchema,
-  getExpenseSummaryOutputSchema,
-  getExpenseSummarySchema,
-  listCategoriesOutputSchema,
-  listCategoriesSchema,
-  listExpensesOutputSchema,
-  listExpensesSchema,
-  updateExpenseOutputSchema,
-  updateExpenseSchema,
-} from "@/schemas/expense";
-import type { TContext } from "@/types/common";
-import type { TablesUpdate } from "@/types/database";
-import { sortKeys, toJson } from "@/utils/json";
-import { tool } from "ai";
-
-/** Best-effort human-readable message from an unknown thrown value. */
-const toMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+  getExpenseSummaryTool,
+  getExpenseTool,
+  listCategoriesTool,
+  listExpensesTool,
+} from "@/services/ai/tools/expense-read.tools";
+import {
+  addExpenseTool,
+  deleteExpenseTool,
+  updateExpenseTool,
+} from "@/services/ai/tools/expense-write.tools";
+import type { TLedger } from "@/types/ledger";
 
 /**
- * A tool result as the model sees it, keys sorted. Replayed history comes from
- * `chat_message` (`jsonb`, which reorders keys), and Anthropic rejects a
- * thinking block once an earlier tool result's text changes, so the live run
- * and every replay must render the same text.
- */
-const toModelOutput = ({ output }: { output: unknown }) => ({
-  type: "json" as const,
-  value: sortKeys(toJson(output)),
-});
-
-/**
- * The user's expense/income categories, read through the per-user KV cache.
- * Throws when unauthenticated or on a query error.
- */
-export const getCategories = (c: TContext) => {
-  const supabase = c.var.supabaseContext.supabase;
-  const userId = c.var.supabaseContext.userClaims?.id;
-  if (!userId) throw new Error("Not authenticated");
-
-  return getOrSet(
-    c.env.CACHE,
-    cacheKey("categories", userId),
-    CACHE_TTL.CATEGORIES,
-    async () => {
-      const { data, error } = await supabase
-        .from("expense_category")
-        .select("id, name, is_expense")
-        .order("name");
-
-      if (error) throw new Error(error.message);
-      return data;
-    },
-  );
-};
-
-/**
- * Expense tools scoped to the authenticated user.
+ * Expense tools scoped to the ledger's user.
  *
- * Every query runs through the user-scoped Supabase client so RLS enforces
- * ownership; `user_id` is never taken from the model. Outputs use a uniform
+ * All data access goes through `ledger`, which filters every query by the
+ * user's id; `user_id` is never taken from the model. Outputs use a uniform
  * `{ ok, data | error }` envelope validated by each tool's `outputSchema`.
+ *
+ * The keys are the stored `tool-<name>` part types: renaming one breaks
+ * loading existing chat history.
  */
-export const expenseTools = (c: TContext) => {
-  const supabase = c.var.supabaseContext.supabase;
-  const userId = c.var.supabaseContext.userClaims?.id;
-
-  return {
-    listExpensesCategory: tool({
-      metadata: { name: "list_expense_categories" },
-      description:
-        "List the user's expense and income categories. Call this before add/update so you can pass the correct category id.",
-      inputSchema: listCategoriesSchema,
-      outputSchema: listCategoriesOutputSchema,
-      toModelOutput,
-      execute: async () => {
-        try {
-          return { ok: true, data: await getCategories(c) };
-        } catch (error) {
-          return { ok: false, error: toMessage(error) };
-        }
-      },
-    }),
-
-    listExpenses: tool({
-      metadata: { name: "list_expenses" },
-      description:
-        "List the user's expense/income records, newest first, with optional filters.",
-      inputSchema: listExpensesSchema,
-      outputSchema: listExpensesOutputSchema,
-      toModelOutput,
-      execute: async ({ from, to, category, is_expense, limit }) => {
-        let query = supabase
-          .from("expense")
-          .select(
-            "id, name, amount, spend_date, is_expense, expense_category(name)",
-          )
-          .order("spend_date", { ascending: false })
-          .limit(limit ?? 10);
-
-        if (category !== undefined) query = query.eq("category", category);
-        if (is_expense !== undefined)
-          query = query.eq("is_expense", is_expense);
-        if (from) query = query.gte("spend_date", from);
-        if (to) query = query.lte("spend_date", to);
-
-        const { data, error } = await query;
-        if (error) return { ok: false, error: error.message };
-        return { ok: true, data };
-      },
-    }),
-
-    getExpense: tool({
-      metadata: { name: "get_expense" },
-      description: "Fetch a single expense/income record by id.",
-      inputSchema: getExpenseSchema,
-      outputSchema: getExpenseOutputSchema,
-      toModelOutput,
-      execute: async ({ id }) => {
-        const { data, error } = await supabase
-          .from("expense")
-          .select(
-            "id, name, amount, spend_date, is_expense, expense_category(name)",
-          )
-          .eq("id", id)
-          .maybeSingle();
-
-        if (error) return { ok: false, error: error.message };
-        if (!data)
-          return { ok: false, error: `No expense found with id ${id}` };
-        return { ok: true, data };
-      },
-    }),
-
-    getExpenseSummary: tool({
-      metadata: { name: "get_expense_summary" },
-      description:
-        "Get the user's balance, total income and total expenses for an optional year/month.",
-      inputSchema: getExpenseSummarySchema,
-      outputSchema: getExpenseSummaryOutputSchema,
-      toModelOutput,
-      execute: async ({ year, month }) => {
-        if (!userId) return { ok: false, error: "Not authenticated" };
-
-        const { data, error } = await supabase.rpc("get_expense_stats", {
-          p_user_id: userId,
-          p_year: year,
-          p_month: month,
-        });
-
-        if (error) return { ok: false, error: error.message };
-        return {
-          ok: true,
-          data: data?.[0] ?? {
-            balance: 0,
-            total_income: 0,
-            total_expenses: 0,
-          },
-        };
-      },
-    }),
-
-    addExpense: tool({
-      metadata: { name: "add_expense" },
-      description:
-        "Create one or more expense/income records in a single call (one approval for all). Returns the created records. Requires human approval before it is written.",
-      inputSchema: addExpensesSchema,
-      outputSchema: addExpenseOutputSchema,
-      toModelOutput,
-      needsApproval: true,
-      execute: async ({ expenses }) => {
-        // One bulk insert: PostgREST writes the whole batch or none of it.
-        const { data, error } = await supabase
-          .from("expense")
-          .insert(expenses)
-          .select("id, name, amount, spend_date, is_expense, category");
-
-        if (error) return { ok: false, error: error.message };
-        return { ok: true, data };
-      },
-    }),
-
-    updateExpense: tool({
-      metadata: { name: "update_expense" },
-      description:
-        "Update an existing expense/income record. Requires human approval before it is written.",
-      inputSchema: updateExpenseSchema,
-      outputSchema: updateExpenseOutputSchema,
-      toModelOutput,
-      needsApproval: true,
-      execute: async ({
-        id,
-        name,
-        amount,
-        category,
-        is_expense,
-        spend_date,
-      }) => {
-        const patch: TablesUpdate<"expense"> = {};
-
-        if (name !== undefined) patch.name = name;
-        if (amount !== undefined) patch.amount = amount;
-        if (category !== undefined) patch.category = category;
-        if (is_expense !== undefined) patch.is_expense = is_expense;
-        if (spend_date !== undefined) patch.spend_date = spend_date;
-
-        if (Object.keys(patch).length === 0) {
-          return { ok: false, error: "No fields to update" };
-        }
-
-        const { data, error } = await supabase
-          .from("expense")
-          .update(patch)
-          .eq("id", id)
-          .select("id, name, amount, spend_date, is_expense, category")
-          .maybeSingle();
-
-        if (error) return { ok: false, error: error.message };
-        if (!data)
-          return { ok: false, error: `No expense found with id ${id}` };
-        return { ok: true, data };
-      },
-    }),
-
-    deleteExpense: tool({
-      metadata: { name: "delete_expense" },
-      description:
-        "Delete one or more expense/income records by id in a single call (one approval for all). Returns the deleted ids; ids that were not found are listed in `error`. Requires human approval before it is written.",
-      inputSchema: deleteExpenseSchema,
-      outputSchema: deleteExpenseOutputSchema,
-      toModelOutput,
-      needsApproval: true,
-      execute: async ({ ids }) => {
-        const { data, error } = await supabase
-          .from("expense")
-          .delete()
-          .in("id", ids)
-          .select("id");
-
-        if (error) return { ok: false, error: error.message };
-
-        const missing = ids.filter((id) => !data.some((row) => row.id === id));
-        if (data.length === 0) {
-          return { ok: false, error: `No expenses found with ids ${ids.join(", ")}` };
-        }
-        return {
-          ok: true,
-          data,
-          ...(missing.length > 0 && { error: `Not found: ${missing.join(", ")}` }),
-        };
-      },
-    }),
-  };
-};
+export const expenseTools = (ledger: TLedger) => ({
+  listExpensesCategory: listCategoriesTool(ledger),
+  listExpenses: listExpensesTool(ledger),
+  getExpense: getExpenseTool(ledger),
+  getExpenseSummary: getExpenseSummaryTool(ledger),
+  addExpense: addExpenseTool(ledger),
+  updateExpense: updateExpenseTool(ledger),
+  deleteExpense: deleteExpenseTool(ledger),
+});

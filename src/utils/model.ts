@@ -35,13 +35,7 @@ const isProvider = (value: TProvider): value is TProvider =>
  * primary call fails. Without an explicit `provider`, both come from the
  * `AI_PROVIDER` / `AI_FALLBACK_PROVIDER` vars (default: Gemini, no fallback).
  */
-export const getModel = (props: TSwitchProvider) => {
-  const {
-    c: { env },
-    provider,
-    fallback,
-  } = props;
-
+export const getModel = ({ env, provider, fallback }: TSwitchProvider) => {
   const primary =
     provider ?? (isProvider(env.AI_PROVIDER) ? env.AI_PROVIDER : "gemini");
   const secondary = provider

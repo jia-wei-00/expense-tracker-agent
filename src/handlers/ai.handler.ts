@@ -6,6 +6,7 @@ import { saveMessage } from "@/services/ai/chat/message.service";
 import { toModelHistory } from "@/services/ai/chat/model-input.service";
 import { prepareTurn } from "@/services/ai/chat/turn.service";
 import { scanReceipt } from "@/services/ai/scan/scan.service";
+import { createLedger } from "@/services/ledger/ledger.service";
 import { consumeAiUsage } from "@/services/subscription/usage.service";
 import type { TAiChat, TAiScan, TChatMessageMetadata } from "@/types/ai";
 import type { TValidContext } from "@/types/common";
@@ -17,8 +18,19 @@ import {
   NoOutputGeneratedError,
 } from "ai";
 import type { TextStreamPart, ToolSet } from "ai";
+import type { Context } from "hono";
 
 const generateMessageId = createIdGenerator({ prefix: "msg", size: 16 });
+
+/** The problem+json response for a request-level `ChatError`. */
+function chatErrorResponse(c: Context, error: ChatError) {
+  return errorResponse(c, {
+    status: error.status,
+    title: error.title,
+    detail: error.detail,
+    extensions: error.extensions,
+  });
+}
 
 /** Attaches token usage to the assistant message once the stream finishes. */
 function usageMetadata({
@@ -51,7 +63,12 @@ export async function aiChat(c: TValidContext<TAiChat>) {
   try {
     if (!userClaims)
       throw new ChatError(HTTP_STATUS.UNAUTHORIZED, "Not authenticated");
-    const agent = chatAgent(c);
+    const ledger = createLedger({
+      db: supabase,
+      kv: c.env.CACHE,
+      userId: userClaims.id,
+    });
+    const agent = chatAgent({ env: c.env, ledger, channel: "app" });
     const messages = await prepareTurn(
       supabase,
       supabaseAdmin,
@@ -81,14 +98,7 @@ export async function aiChat(c: TValidContext<TAiChat>) {
       },
     });
   } catch (error) {
-    if (error instanceof ChatError) {
-      return errorResponse(c, {
-        status: error.status,
-        title: error.title,
-        detail: error.detail,
-        extensions: error.extensions,
-      });
-    }
+    if (error instanceof ChatError) return chatErrorResponse(c, error);
     console.error("aiChat failed:", error);
     return errorResponse(c);
   }
@@ -99,24 +109,25 @@ export async function aiChat(c: TValidContext<TAiChat>) {
  * one per category, for the client to review. Nothing is written.
  */
 export async function aiScan(c: TValidContext<TAiScan>) {
-  const { supabaseAdmin, userClaims } = c.var.supabaseContext;
+  const { supabase, supabaseAdmin, userClaims } = c.var.supabaseContext;
 
   try {
     if (!userClaims)
       throw new ChatError(HTTP_STATUS.UNAUTHORIZED, "Not authenticated");
     await consumeAiUsage(supabaseAdmin, userClaims.id, "scan");
-    const expenses = await scanReceipt(c, c.req.valid("json"));
+    const ledger = createLedger({
+      db: supabase,
+      kv: c.env.CACHE,
+      userId: userClaims.id,
+    });
+    const expenses = await scanReceipt(
+      { env: c.env, ledger },
+      c.req.valid("json"),
+    );
 
     return successResponse(c, { data: expenses });
   } catch (error) {
-    if (error instanceof ChatError) {
-      return errorResponse(c, {
-        status: error.status,
-        title: error.title,
-        detail: error.detail,
-        extensions: error.extensions,
-      });
-    }
+    if (error instanceof ChatError) return chatErrorResponse(c, error);
     if (
       NoObjectGeneratedError.isInstance(error) ||
       NoOutputGeneratedError.isInstance(error)
