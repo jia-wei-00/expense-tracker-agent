@@ -1,4 +1,5 @@
 import type {
+  inboxRowSchema,
   telegramEnvelopeSchema,
   telegramFileSchema,
   telegramSentMessageSchema,
@@ -9,6 +10,7 @@ import type {
   updateKindSchema,
 } from "@/schemas/telegram.schema";
 import type { z } from "zod";
+import type { TAppBindings, TSupabaseAdminClient } from "@/types/common";
 
 export type TTelegramUpdate = z.infer<typeof telegramUpdateSchema>;
 export type TTelegramMessage = z.infer<typeof telegramMessageSchema>;
@@ -37,3 +39,11 @@ export type TTelegramClient = {
   downloadFile: (fileId: string) => Promise<{ bytes: Uint8Array; mediaType: string }>;
 };
 export type TFakeFetchCall = { url: string; body: unknown };
+export type TTelegramDeps = {
+  env: TAppBindings;
+  admin: TSupabaseAdminClient;
+  telegram: TTelegramClient;
+};
+export type TInboxRow = z.infer<typeof inboxRowSchema>;
+/** What the inbox alarm does with its oldest row once `attempts` is incremented. */
+export type TInboxStep = "process" | "drop";

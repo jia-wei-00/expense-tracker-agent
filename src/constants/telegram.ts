@@ -21,4 +21,7 @@ export const TELEGRAM_COPY = {
   linkTaken: "This Telegram account is linked to another user.",
   approvalExpired: "Expired after 10 minutes.",
   approvalAnswered: "Already answered.",
+  help: 'Send me an expense like "lunch 12" or a receipt photo. Link your account first: open the app → Settings → Telegram.',
+  // Placeholder for update kinds a later slice implements.
+  comingSoon: "Coming soon.",
 } as const;

@@ -9,3 +9,4 @@ app.route("/ai", ai);
 app.route("/webhooks", webhooks);
 
 export default app;
+export { TelegramInbox } from "@/durable-objects/telegram-inbox.durable-object";

@@ -65,3 +65,13 @@ export const telegramEnvelopeSchema = z.looseObject({
 export const telegramSentMessageSchema = z.looseObject({ message_id: z.number() });
 
 export const telegramFileSchema = z.looseObject({ file_path: z.string() });
+
+/** A row of the `TelegramInbox` SQLite `updates` table. */
+export const inboxRowSchema = z.object({
+  update_id: z.number(),
+  body: z.string(),
+  attempts: z.number(),
+});
+
+/** Just enough of an update to log which one failed validation. */
+export const updateIdSchema = z.looseObject({ update_id: z.number() });
