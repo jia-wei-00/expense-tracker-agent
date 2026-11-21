@@ -3,14 +3,18 @@ import type { TSupabaseAdminClient } from "@/types/common";
 import type { TTelegramDeps, TTelegramMessage } from "@/types/telegram";
 import { parseStartToken } from "@/utils/telegram";
 
-async function isTelegramLinked(admin: TSupabaseAdminClient, telegramUserId: number): Promise<boolean> {
+/** The app user this Telegram account is linked to, if any. */
+export async function linkedUserId(
+  admin: TSupabaseAdminClient,
+  telegramUserId: number,
+): Promise<string | undefined> {
   const { data, error } = await admin
     .from("user_profile")
     .select("user_id")
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
   if (error) throw new Error(`user_profile lookup failed: ${error.message}`);
-  return data !== null;
+  return data?.user_id;
 }
 
 /**
@@ -36,7 +40,7 @@ async function attemptLink(
 
   // A used token for an account that is already linked: a retry after the
   // "Linked" reply failed to send, or the same link tapped twice.
-  if (await isTelegramLinked(admin, telegramUserId)) {
+  if ((await linkedUserId(admin, telegramUserId)) !== undefined) {
     return { outcome: "already_linked", text: TELEGRAM_COPY.linkOk };
   }
   return { outcome: error.message, text: TELEGRAM_COPY.linkBadToken };

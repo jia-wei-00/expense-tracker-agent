@@ -1,5 +1,6 @@
 import { TELEGRAM_COPY } from "@/constants/telegram";
 import { linkTelegram } from "@/services/telegram/link.service";
+import { handleDmMessage } from "@/services/telegram/turn.service";
 import type { TTelegramDeps, TTelegramUpdate } from "@/types/telegram";
 import { chatIdOf, classifyUpdate } from "@/utils/telegram";
 
@@ -23,6 +24,11 @@ export async function handleUpdate(deps: TTelegramDeps, update: TTelegramUpdate)
       return;
     case "message":
     case "new":
+      // Both are only ever classified from a message.
+      if (update.message) {
+        await handleDmMessage(deps, update.message, { forceNew: kind === "new" });
+      }
+      return;
     case "callback":
       await reply(TELEGRAM_COPY.comingSoon);
       return;

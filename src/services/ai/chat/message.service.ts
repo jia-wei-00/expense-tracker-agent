@@ -11,6 +11,10 @@ import { validateUIMessages } from "ai";
  * The most recent `CHAT_HISTORY_LIMIT` messages, oldest first. `data` is an
  * untyped `jsonb` column, so rows are validated (message shape, metadata, tool
  * inputs/outputs against `tools`) before they are used as `TChatMessage`.
+ *
+ * Either client works (they share one type). The user-scoped one lets RLS
+ * check ownership; with the service-role one (Telegram), the caller must have
+ * resolved `sessionId` from a query filtered by the owner's `user_id`.
  */
 export async function loadMessages(
   supabase: TSupabaseClient,

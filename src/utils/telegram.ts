@@ -27,6 +27,11 @@ function commandOf(text: string): string {
   return (word.split("@")[0] ?? "").toLowerCase();
 }
 
+/** The text after the command word, e.g. `lunch 12` for `/new@bot lunch 12`. */
+export function commandArgs(text: string): string {
+  return text.trim().replace(/^\S+/, "").trim();
+}
+
 export function classifyUpdate(update: TTelegramUpdate): TUpdateKind {
   if (update.callback_query) return "callback";
   const message = update.message;

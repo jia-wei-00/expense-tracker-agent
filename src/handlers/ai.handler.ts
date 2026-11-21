@@ -4,23 +4,20 @@ import { chatAgent } from "@/services/ai/agents/chat.agent";
 import { ChatError } from "@/services/ai/chat/chat.error";
 import { saveMessage } from "@/services/ai/chat/message.service";
 import { toModelHistory } from "@/services/ai/chat/model-input.service";
+import { generateMessageId, usageMetadata } from "@/services/ai/chat/run.service";
 import { prepareTurn } from "@/services/ai/chat/turn.service";
 import { scanReceipt } from "@/services/ai/scan/scan.service";
 import { createLedger } from "@/services/ledger/ledger.service";
 import { consumeAiUsage } from "@/services/subscription/usage.service";
-import type { TAiChat, TAiScan, TChatMessageMetadata } from "@/types/ai";
+import type { TAiChat, TAiScan } from "@/types/ai";
 import type { TValidContext } from "@/types/common";
 import {
   consumeStream,
   createAgentUIStreamResponse,
-  createIdGenerator,
   NoObjectGeneratedError,
   NoOutputGeneratedError,
 } from "ai";
-import type { TextStreamPart, ToolSet } from "ai";
 import type { Context } from "hono";
-
-const generateMessageId = createIdGenerator({ prefix: "msg", size: 16 });
 
 /** The problem+json response for a request-level `ChatError`. */
 function chatErrorResponse(c: Context, error: ChatError) {
@@ -30,23 +27,6 @@ function chatErrorResponse(c: Context, error: ChatError) {
     detail: error.detail,
     extensions: error.extensions,
   });
-}
-
-/** Attaches token usage to the assistant message once the stream finishes. */
-function usageMetadata({
-  part,
-}: {
-  part: TextStreamPart<ToolSet>;
-}): TChatMessageMetadata | undefined {
-  return part.type === "finish"
-    ? {
-        usage: {
-          inputTokens: part.totalUsage.inputTokens,
-          outputTokens: part.totalUsage.outputTokens,
-          totalTokens: part.totalUsage.totalTokens,
-        },
-      }
-    : undefined;
 }
 
 /**

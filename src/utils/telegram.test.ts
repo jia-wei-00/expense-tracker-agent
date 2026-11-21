@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   chatIdOf,
   classifyUpdate,
+  commandArgs,
   fileIdFromUrl,
   formatCallbackData,
   parseCallbackData,
@@ -118,4 +119,10 @@ it("shouldRotate", () => {
   expect(shouldRotate(undefined, now)).toBe(true);
   expect(shouldRotate(new Date("2026-11-21T09:00:01Z"), now)).toBe(false);
   expect(shouldRotate(new Date("2026-11-21T08:59:59Z"), now)).toBe(true);
+});
+it("commandArgs drops the command word and its @bot suffix", () => {
+  expect(commandArgs("/new")).toBe("");
+  expect(commandArgs("/new   ")).toBe("");
+  expect(commandArgs("/new@ExpenseBot lunch 12")).toBe("lunch 12");
+  expect(commandArgs("/new  lunch 12\ndinner 30")).toBe("lunch 12\ndinner 30");
 });

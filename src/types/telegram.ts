@@ -10,6 +10,7 @@ import type {
   updateKindSchema,
 } from "@/schemas/telegram.schema";
 import type { z } from "zod";
+import type { TChatMessage } from "@/types/ai";
 import type { TAppBindings, TSupabaseAdminClient } from "@/types/common";
 
 export type TTelegramUpdate = z.infer<typeof telegramUpdateSchema>;
@@ -47,3 +48,18 @@ export type TTelegramDeps = {
 export type TInboxRow = z.infer<typeof inboxRowSchema>;
 /** What the inbox alarm does with its oldest row once `attempts` is incremented. */
 export type TInboxStep = "process" | "drop";
+/** Whose Telegram conversation: the linked app user, the chat and the sender. */
+export type TTelegramSessionScope = {
+  userId: string;
+  chatId: number;
+  telegramUserId: number;
+};
+/** The newest session of a scope, with when it was last written to. */
+export type TTelegramSession = { id: string; lastMessageAt: Date };
+/** Where a Telegram message stands in the stored history (see `turnResumeState`). */
+export type TTurnResumeState = "new" | "resume" | "duplicate";
+/** What a DM message leads to once its session and history are known. */
+export type TDmTurn =
+  | { kind: "run"; sessionId: string; messages: TChatMessage[] }
+  | { kind: "refuse"; copy: string }
+  | { kind: "skip" };

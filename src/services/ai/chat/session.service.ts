@@ -43,7 +43,7 @@ export async function ensureSession(
 }
 
 /** Session title from the first text part, trimmed to `TITLE_MAX_LENGTH`. */
-function deriveTitle(message: TChatMessage) {
+export function deriveTitle(message: TChatMessage) {
   const text = message.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join(" ")
