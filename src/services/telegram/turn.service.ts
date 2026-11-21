@@ -7,6 +7,7 @@ import { appendMessage, loadMessages, saveMessage } from "@/services/ai/chat/mes
 import { runAgent } from "@/services/ai/chat/run.service";
 import { createLedger } from "@/services/ledger/ledger.service";
 import { consumeAiUsage } from "@/services/subscription/usage.service";
+import { userParts } from "@/services/telegram/media.service";
 import { linkedUserId } from "@/services/telegram/link.service";
 import { replyText, sendReply, withTyping } from "@/services/telegram/render.service";
 import { currentSession, startSession, titleSession } from "@/services/telegram/session.service";
@@ -18,6 +19,7 @@ import type {
   TTelegramMessage,
   TTelegramSessionScope,
   TTurnResumeState,
+  TUserPart,
 } from "@/types/telegram";
 import { commandArgs, shouldRotate, telegramMessageId } from "@/utils/telegram";
 
@@ -66,12 +68,12 @@ async function chargeTurn(admin: TSupabaseAdminClient, userId: string): Promise<
   }
 }
 
-function toUserMessage(message: TTelegramMessage, text: string): TChatMessage {
+function toUserMessage(message: TTelegramMessage, parts: TUserPart[]): TChatMessage {
   const chatId = message.chat.id;
   return {
     id: telegramMessageId(chatId, message.message_id),
     role: "user",
-    parts: [{ type: "text", text }],
+    parts,
     metadata: {
       telegram: {
         chatId,
@@ -139,20 +141,22 @@ export async function handleDmMessage(
   }
   const scope = { userId, chatId, telegramUserId };
 
-  const text = forceNew ? commandArgs(message.text ?? "") : message.text;
-  if (forceNew && !text) {
+  // `/new <text>` starts a conversation with that text. `/new` is text-only
+  // (a caption never routes to a command), so a bare one has no parts.
+  const parts = userParts(forceNew ? { ...message, text: commandArgs(message.text ?? "") } : message);
+  if (forceNew && parts === "unsupported") {
     await startSession(admin, scope);
     await say(TELEGRAM_COPY.newConversation);
     return;
   }
-  if (!text) {
+  if (parts === "unsupported") {
     await say(TELEGRAM_COPY.unsupportedMedia);
     return;
   }
 
   const ledger = createLedger({ db: admin, kv: env.CACHE, userId });
   const agent = chatAgent({ env, ledger, channel: "telegram-dm" });
-  const userMessage = toUserMessage(message, text);
+  const userMessage = toUserMessage(message, parts);
   const turn = await prepareDmTurn(admin, scope, { tools: agent.tools, userMessage, forceNew });
   console.log(JSON.stringify({ log: "telegram_turn", chat_id: chatId, outcome: turn.kind }));
   if (turn.kind === "skip") return;
@@ -164,7 +168,7 @@ export async function handleDmMessage(
   const reply =
     turn.kind === "resend"
       ? turn.reply
-      : await withTyping(telegram, chatId, () => runAgent({ agent, messages: turn.messages }));
+      : await withTyping(telegram, chatId, () => runAgent({ agent, messages: turn.messages, download: telegram.downloadFile }));
   if (turn.kind === "run" && reply && reply.parts.length > 0) {
     await saveMessage(admin, turn.sessionId, reply);
   }

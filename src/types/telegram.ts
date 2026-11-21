@@ -10,7 +10,7 @@ import type {
   updateKindSchema,
 } from "@/schemas/telegram.schema";
 import type { z } from "zod";
-import type { TChatMessage } from "@/types/ai";
+import type { TChatMessage, TChatMessagePart } from "@/types/ai";
 import type { TAppBindings, TSupabaseAdminClient } from "@/types/common";
 
 export type TTelegramUpdate = z.infer<typeof telegramUpdateSchema>;
@@ -64,3 +64,7 @@ export type TDmTurn =
   | { kind: "refuse"; copy: string }
   | { kind: "resend"; reply: TChatMessage }
   | { kind: "skip" };
+
+/** A part of a user message built from a Telegram message. */
+export type TUserPart = Extract<TChatMessagePart, { type: "text" | "file" }>;
+export type TDownloadFile = TTelegramClient["downloadFile"];

@@ -1,6 +1,8 @@
 import { toModelHistory } from "@/services/ai/chat/model-input.service";
 import type { chatAgent } from "@/services/ai/agents/chat.agent";
+import { resolveTelegramFiles } from "@/services/telegram/media.service";
 import type { TChatMessage, TChatMessageMetadata } from "@/types/ai";
+import type { TDownloadFile } from "@/types/telegram";
 import { createAgentUIStream, createIdGenerator, readUIMessageStream } from "ai";
 import type { TextStreamPart, ToolSet } from "ai";
 
@@ -30,17 +32,23 @@ export function usageMetadata({
  *
  * A stream error throws instead of ending the reply early, so the caller can
  * retry the turn from the stored user message.
+ *
+ * With `download`, `telegram-file:` parts are inlined for the model only;
+ * `originalMessages` and the stored reply keep the file id.
  */
 export async function runAgent({
   agent,
   messages,
+  download,
 }: {
   agent: ReturnType<typeof chatAgent>;
   messages: TChatMessage[];
+  download?: TDownloadFile;
 }): Promise<TChatMessage | undefined> {
+  const modelHistory = toModelHistory(messages);
   const stream = await createAgentUIStream({
     agent,
-    uiMessages: toModelHistory(messages),
+    uiMessages: download ? await resolveTelegramFiles(modelHistory, download) : modelHistory,
     originalMessages: messages,
     generateMessageId,
     messageMetadata: usageMetadata,

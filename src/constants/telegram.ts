@@ -3,6 +3,11 @@ export const SESSION_IDLE_ROTATE_MS = 3 * 60 * 60 * 1000;
 export const TELEGRAM_IP_RANGES = ["149.154.160.0/20", "91.108.4.0/22"];
 export const PHOTO_MAX_SIDE = 1280;
 export const TELEGRAM_FILE_PREFIX = "telegram-file:";
+// Image types the `chat-images` bucket accepts; a document of any other type is unsupported.
+export const ACCEPTED_IMAGE_TYPES: readonly string[] = ["image/jpeg", "image/png", "image/webp", "image/heic"];
+export const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+// Telegram re-encodes every photo as JPEG.
+export const PHOTO_MEDIA_TYPE = "image/jpeg";
 export const CALLBACK_PREFIX = "apv";
 export const INBOX_MAX_ATTEMPTS = 3;
 export const INBOX_RUN_BUDGET_MS = 10 * 60 * 1000;
