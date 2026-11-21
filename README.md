@@ -27,8 +27,9 @@ Typecheck with `bunx --package typescript@5 tsc --noEmit`.
 |---|---|
 | `POST /ai/chat` | Send a message, or approve/reject pending actions. Streams the reply as an AI SDK UI message stream. |
 | `POST /ai/scan` | Stateless receipt OCR. Returns a proposed expense for the client's form and writes nothing. |
+| `POST /webhooks/telegram` | Telegram bot webhook (server-to-server; secret header + Telegram IPs). |
 
-The full client contract is in [`docs/chat-api.md`](docs/chat-api.md).
+The full client contract is in [`docs/chat-api.md`](docs/chat-api.md); the Telegram bot's is in [`docs/telegram-api.md`](docs/telegram-api.md).
 
 ## How the system works
 

@@ -8,15 +8,16 @@ Cloudflare Workers API built with Hono + TypeScript. Package manager is Bun (`bu
 - `npm run deploy` — `wrangler deploy --minify`
 - `npm run cf-typegen` — regenerates root `worker-configuration.d.ts` exposing the `CloudflareBindings` interface. Run it after editing `wrangler.jsonc` bindings/vars.
 
+- `npm test` — `vitest run` (unit tests colocated as `*.test.ts`).
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run lint` — ESLint (typescript-eslint `strictTypeChecked` + the repo rules in `eslint.config.js`).
 
-No test script is configured. Existing code still has known lint/typecheck failures, listed in `docs/coding-rules.md`; don't add new ones.
+Existing code still has known lint/typecheck failures, listed in `docs/coding-rules.md`; don't add new ones.
 
 ## Structure
 
 - `src/index.ts` — entrypoint; the Hono app is mounted here. Add routes via `app.route(path, router)`.
-- `src/routes/*.route.ts` — route modules. `ai.route.ts` exposes `POST /ai/chat` and `POST /ai/scan` (user JWT via `withSupabase({ auth: "user" })`). `webhooks.route.ts` exposes `POST /webhooks/revenuecat` (no user JWT; `withSupabase({ auth: "none" })` for the admin client, `revenuecat-auth.middleware.ts` checks the shared secret).
+- `src/routes/*.route.ts` — route modules. `ai.route.ts` exposes `POST /ai/chat` and `POST /ai/scan` (user JWT via `withSupabase({ auth: "user" })`). `webhooks.route.ts` exposes `POST /webhooks/revenuecat` (no user JWT; `withSupabase({ auth: "none" })` for the admin client, `revenuecat-auth.middleware.ts` checks the shared secret) and `POST /webhooks/telegram` (`telegram-auth.middleware.ts`: Telegram IP range + secret header; the handler only enqueues to the inbox).
 - `src/handlers/*.handler.ts` — read the validated request, call services, build the response. `ai.handler.ts` holds `aiChat` / `aiScan` and maps `ChatError` to problem+json; `webhook.handler.ts` acknowledges every RevenueCat outcome with 200.
 - `src/services/subscription/` — `revenuecat.service.ts` maps a webhook event to the `apply_subscription_event` / `transfer_subscription` RPCs; `usage.service.ts` (`consumeAiUsage`) spends one unit of the monthly AI quota or throws the 402/429 `ChatError`.
 - `src/services/ai/` — agent orchestration (Vercel AI SDK `ToolLoopAgent`, wrapped with Braintrust's `wrapAISDK`):
@@ -24,13 +25,15 @@ No test script is configured. Existing code still has known lint/typecheck failu
   - `prompts/*.prompt.ts` — agent instructions as typed functions (e.g. `chatInstructions({ channel })`; the `"app"` prompt must stay byte-identical). Keep rules here, not in the agent wiring.
   - `tools/expense.tools.ts` — `expenseTools(ledger)`: the tool map (keys are stored part types; never rename). Tools live in `expense-read.tools.ts` / `expense-write.tools.ts`. Reads auto-execute; writes use `needsApproval: true`. Input and output schemas live in `src/schemas/expense.ts`. Every tool declares an `outputSchema` and returns the uniform `{ ok, data | error }` envelope; every `execute` return/catch path must return that envelope too (a bare string fails output validation and crashes the run). Tools touch data only through the ledger.
   - `chat/` — chat persistence. `turn.service.ts` (`prepareTurn`) builds each turn from `session.service.ts` (ownership, create + title), `message.service.ts` (load/save history) and `approval.service.ts` (resolve/supersede pending approvals). Request-level failures throw `ChatError` (`chat.error.ts`), mapped to problem+json.
+- `src/durable-objects/telegram-inbox.durable-object.ts` — `TelegramInbox`, one Durable Object per Telegram chat id. Stores updates in its SQLite (deduped by `update_id`; finished ones kept 24h as tombstones) and processes them one at a time from an alarm, with retries and a poison cutoff.
+- `src/services/telegram/` — the DM bot: `update.service.ts` routes an update, `link.service.ts` (`/start <token>`), `session.service.ts` (3h idle rotation, `/new`), `turn.service.ts` (one agent turn), `approval.service.ts` (inline-button approvals), `media.service.ts` (photos), `render.service.ts` (Telegram HTML), `deps.service.ts` (wiring). `src/libs/telegram.ts` is the Bot API client, `src/utils/telegram.ts` the pure helpers, `src/constants/telegram.ts` the limits and reply copy.
 - `src/services/ledger/ledger.service.ts` — `createLedger({ db, kv, userId })`: the agent's only access to `expense` / `expense_category`. Every query filters `.eq("user_id", userId)` and every insert sets `user_id`, so it is safe with the service-role client (which bypasses RLS). `ledger.categories()` is the KV-cached category loader (also used by `/ai/scan`).
 - `src/utils/model.ts` — `getModel({ env, provider, fallback? })` returns an AI SDK language model (Gemini via `@ai-sdk/google`, Groq via `@ai-sdk/groq`, Mercury/NVIDIA via `@ai-sdk/openai-compatible`). With `fallback`, a call that fails before responding is retried on the fallback provider (mid-stream errors are not). Omitting `provider` reads `AI_PROVIDER` / `AI_FALLBACK_PROVIDER` from `wrangler.jsonc` vars — the chat agent does this; `aiScan` pins Gemini (image input).
 - `src/libs/cache.ts` — KV read-through helper. KV is eventually consistent: only cache stable data (currently the per-user category list). Never cache HITL state or balances.
 - `src/constants/` — shared values: `ai.ts` (history limit, agent step limit, approval TTL, title length, role → `chat_message.type`), `cache.ts` (KV TTLs), `error.ts`, `model-config.ts`, `subscription.ts` (`AI_LIMITS` per tier, RevenueCat event flags).
 - `src/types/` — shared types. `src/types/database.ts` is generated from the Supabase schema; `TSupabaseClient` is the user-scoped client type, `TSupabaseAdminClient` the service-role one.
 - `migrations/` — SQL migrations for the shared Supabase project (applied via the Supabase MCP/dashboard; there is no local Supabase CLI project here).
-- `docs/chat-api.md` — client contract for the chat endpoints. `docs/subscription-api.md` — plans, limits, what clients read, retention.
+- `docs/chat-api.md` — client contract for the chat endpoints. `docs/subscription-api.md` — plans, limits, what clients read, retention. `docs/telegram-api.md` — linking and read-only Telegram sessions. `scripts/set-telegram-webhook.md` — bot setup and webhook runbook.
 
 ## Subscriptions & AI quota
 
@@ -52,6 +55,18 @@ No test script is configured. Existing code still has known lint/typecheck failu
 - A rejected approval, or a new user message while approvals are pending, marks the call `output-denied` (never `approval-responded` + `approved: false`: that renders differently live and on replay, which breaks Anthropic's thinking-block check). Deleting the session cascades to `chat_message`, cancelling pending actions.
 - Tools close over a ledger (`createLedger`) built with the caller's `userId`; it adds the `user_id` filter to every query and sets it on every insert — never take `user_id` from the model. `/ai/chat` still passes the user-scoped client, so RLS applies underneath there.
 - `POST /ai/scan {url, mediaType}` is stateless (`services/ai/scan/scan.service.ts`): it returns an array of proposed expenses (`addExpenseSchema` shape), one per category, for the client to review, and writes nothing. The rows are balanced to the receipt's paid total and `spend_date` is normalised to Malaysia local `YYYY-MM-DDTHH:mm:ss` (the column is `timestamp without time zone`).
+
+## Telegram bot
+
+Contract: `docs/telegram-api.md`; setup: `scripts/set-telegram-webhook.md`. Rules not to break:
+
+- Identity comes from the database, never the payload. The user is the `user_profile` row whose `telegram_user_id` matches the verified sender; `chat_session.user_id` is always that user. Callback data (`apv:<0|1>:<chat_message.id>:<8-hex tag>`) is untrusted: re-check ownership and that the tag matches the stored pending calls.
+- Data access goes through the user-scoped ledger (`createLedger`). The service-role client never touches `expense` / `expense_category` directly; it only writes chat rows after the ownership check.
+- Quota before writes: `consume_ai_usage` runs for a new message before any session or message write. Approval taps and redeliveries are never counted.
+- `telegram-file:<file_id>` parts never leave the Worker: it downloads and inlines them as `data:` URLs for the model on every turn, and the app renders them as "Photo sent in Telegram".
+- Never log the bot token (it is in Bot API URLs) or the webhook secret; log update and chat ids only.
+- The inbox runs one update at a time per chat. Do not process updates in the webhook handler or add concurrency inside a chat. Everything run from the inbox must be safe to retry.
+- `POST /ai/chat` returns 409 for sessions with `telegram_chat_id`; Telegram sessions are read-only in the app.
 
 ## Conventions
 
