@@ -79,14 +79,16 @@ export type TApprovalState = "pending" | "approved-unexecuted" | "settled";
 export type TCardMessage = { chatId: number; messageId: number; text?: string };
 /**
  * What a tap on an approval card leads to: `silent` (malformed), a `toast`
- * that leaves the card as is, `closed` (a toast and the buttons removed), or
- * the decision applied to the stored message.
+ * that leaves the card as is, `closed` (a toast and the buttons removed), the
+ * decision applied to the stored message, or `resend` (a retried approval
+ * whose continuation is stored: deliver it again).
  */
 export type TCallbackOutcome =
   | { kind: "silent" }
   | { kind: "toast"; text: string }
   | { kind: "closed"; card: TCardMessage; text: string }
   | { kind: "rejected"; card: TCardMessage }
+  | { kind: "resend"; card: TCardMessage; sessionId: string; continuation: TChatMessage; ledger: TLedger }
   | {
       kind: "approved";
       card: TCardMessage;

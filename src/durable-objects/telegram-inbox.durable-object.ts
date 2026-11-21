@@ -103,7 +103,7 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
     }
 
     try {
-      await handleUpdate(deps, update);
+      await handleUpdate(deps, update, { retry: attempts > 1 });
     } catch (error) {
       logOutcome(update.update_id, chatIdOf(update), `failed (attempt ${attempts})`, classifyUpdate(update));
       throw error;

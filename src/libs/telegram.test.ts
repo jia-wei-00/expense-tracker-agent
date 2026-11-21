@@ -36,6 +36,15 @@ describe("createTelegramClient", () => {
     });
   });
 
+  it("sendMessage replies even when the original message is gone", async () => {
+    const { fetch, calls } = fakeFetch([{ ok: true, result: { message_id: 10 } }]);
+    const tg = createTelegramClient({ token: "T0K", fetch });
+    await tg.sendMessage({ chatId: 5, text: "ok", replyTo: 7 });
+    expect(bodySchema.parse(JSON.parse(String(calls[0]?.body)))).toMatchObject({
+      reply_parameters: { message_id: 7, allow_sending_without_reply: true },
+    });
+  });
+
   it("errors never contain the token", async () => {
     const { fetch } = fakeFetch([{ ok: false, description: "Bad Request" }]);
     const tg = createTelegramClient({ token: "T0K", fetch });

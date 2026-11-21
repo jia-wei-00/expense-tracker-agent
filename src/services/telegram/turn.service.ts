@@ -7,10 +7,10 @@ import { appendMessage, loadMessages, saveMessage } from "@/services/ai/chat/mes
 import { runAgent } from "@/services/ai/chat/run.service";
 import { createLedger } from "@/services/ledger/ledger.service";
 import { consumeAiUsage } from "@/services/subscription/usage.service";
-import { offerApproval } from "@/services/telegram/approval.service";
-import { userParts } from "@/services/telegram/media.service";
+import { offerApproval } from "@/services/telegram/card.service";
+import { resolveTelegramFiles, userParts } from "@/services/telegram/media.service";
 import { linkedUserId } from "@/services/telegram/link.service";
-import { replyText, sendReply, withTyping } from "@/services/telegram/render.service";
+import { replyOrFallback, sendReply, withTyping } from "@/services/telegram/render.service";
 import { currentSession, startSession, titleSession } from "@/services/telegram/session.service";
 import type { TChatAgent, TChatMessage, TChatTools } from "@/types/ai";
 import type { TSupabaseAdminClient } from "@/types/common";
@@ -92,6 +92,11 @@ function toUserMessage(message: TTelegramMessage, parts: TUserPart[]): TChatMess
  * an answered one resends its saved reply if that reply is the last message,
  * else is skipped. Quota comes before any write, so a 402/429
  * leaves no session or message behind.
+ *
+ * The open calls of the latest session are closed first, whether the message
+ * continues it or starts a new one: an unanswered card can't be approved once
+ * the user moved on, and an approved call whose run failed would otherwise
+ * leave a tool call without a result in the history.
  */
 async function prepareDmTurn(
   admin: TSupabaseAdminClient,
@@ -110,15 +115,22 @@ async function prepareDmTurn(
   const refusal = await chargeTurn(admin, scope.userId);
   if (refusal !== undefined) return { kind: "refuse", copy: refusal };
 
+  const resolved = latest ? await supersedeApprovals(admin, latest.id, history) : [];
   const continues = latest !== undefined && !forceNew && !shouldRotate(latest.lastMessageAt, new Date());
   const sessionId = continues ? latest.id : await startSession(admin, scope, userMessage);
   // Only a session `/new` started empty has no history yet.
   if (continues && history.length === 0) {
     await titleSession(admin, { userId: scope.userId, sessionId, firstMessage: userMessage });
   }
-  const resolved = continues ? await supersedeApprovals(admin, sessionId, history) : [];
   const saved = await appendMessage(admin, sessionId, userMessage);
-  return { kind: "run", sessionId, messages: [...resolved, saved] };
+  return { kind: "run", sessionId, messages: continues ? [...resolved, saved] : [saved] };
+}
+
+/** A bare `/new`: closes the open calls of the session it leaves, then starts an empty one. */
+async function startOver(admin: TSupabaseAdminClient, scope: TTelegramSessionScope, tools: TChatTools): Promise<void> {
+  const latest = await currentSession(admin, scope);
+  if (latest) await supersedeApprovals(admin, latest.id, await loadMessages(admin, latest.id, tools));
+  await startSession(admin, scope);
 }
 
 /**
@@ -132,7 +144,11 @@ async function produceReply(
 ): Promise<{ reply?: TChatMessage; rowId?: number }> {
   if (turn.kind === "resend") return { reply: turn.reply };
   const reply = await withTyping(telegram, chatId, () =>
-    runAgent({ agent, messages: turn.messages, download: telegram.downloadFile }),
+    runAgent({
+      agent,
+      messages: turn.messages,
+      prepareModelInput: (history) => resolveTelegramFiles(history, telegram.downloadFile),
+    }),
   );
   if (!reply || reply.parts.length === 0) return { reply };
   return { reply, rowId: await saveMessage(admin, turn.sessionId, reply) };
@@ -158,12 +174,14 @@ export async function handleDmMessage(
     return;
   }
   const scope = { userId, chatId, telegramUserId };
+  const ledger = createLedger({ db: admin, kv: env.CACHE, userId });
+  const agent = chatAgent({ env, ledger, channel: "telegram-dm" });
 
   // `/new <text>` starts a conversation with that text. `/new` is text-only
   // (a caption never routes to a command), so a bare one has no parts.
   const parts = userParts(forceNew ? { ...message, text: commandArgs(message.text ?? "") } : message);
   if (forceNew && parts === "unsupported") {
-    await startSession(admin, scope);
+    await startOver(admin, scope, agent.tools);
     await say(TELEGRAM_COPY.newConversation);
     return;
   }
@@ -172,8 +190,6 @@ export async function handleDmMessage(
     return;
   }
 
-  const ledger = createLedger({ db: admin, kv: env.CACHE, userId });
-  const agent = chatAgent({ env, ledger, channel: "telegram-dm" });
   const userMessage = toUserMessage(message, parts);
   const turn = await prepareDmTurn(admin, scope, { tools: agent.tools, userMessage, forceNew });
   console.log(JSON.stringify({ log: "telegram_turn", chat_id: chatId, outcome: turn.kind }));
@@ -184,7 +200,7 @@ export async function handleDmMessage(
   }
 
   const { reply, rowId } = await produceReply({ env, admin, telegram }, turn, { agent, chatId });
-  await sendReply(telegram, { chatId, replyTo: message.message_id, text: replyText(reply) });
+  await sendReply(telegram, { chatId, replyTo: message.message_id, text: replyOrFallback(reply) });
   // A resent reply still waiting on a decision gets its card again.
   await offerApproval({ admin, telegram }, { chatId, sessionId: turn.sessionId, reply, rowId, ledger });
 }

@@ -80,7 +80,10 @@ function sendMessagePayload({ chatId, text, replyTo, buttons }: TSendMessageInpu
   return {
     chat_id: chatId,
     text,
-    reply_parameters: replyTo === undefined ? undefined : { message_id: replyTo },
+    // Still sent when the user deleted the message it answers; otherwise every
+    // retry fails the same way and the reply is lost.
+    reply_parameters:
+      replyTo === undefined ? undefined : { message_id: replyTo, allow_sending_without_reply: true },
     reply_markup: buttons && {
       inline_keyboard: [buttons.map((button) => ({ text: button.text, callback_data: button.data }))],
     },

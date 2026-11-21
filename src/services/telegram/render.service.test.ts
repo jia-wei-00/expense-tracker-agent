@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { TELEGRAM_MESSAGE_MAX } from "@/constants/telegram";
+import { TELEGRAM_COPY, TELEGRAM_MESSAGE_MAX } from "@/constants/telegram";
 import {
   approvalCard,
   approvalState,
   cardTag,
   continuationOf,
   decidedCardText,
+  replyOrFallback,
 } from "@/services/telegram/render.service";
 import { callsTag } from "@/utils/telegram";
 import type { TChatMessage, TChatMessagePart } from "@/types/ai";
@@ -170,5 +171,17 @@ describe("approvalState", () => {
     expect(approvalState(assistantWith([executed, denied]))).toBe("settled");
     expect(approvalState(assistantWith([{ type: "text", text: "hi" }]))).toBe("settled");
     expect(approvalState(undefined)).toBe("settled");
+  });
+});
+
+describe("replyOrFallback", () => {
+  it("sends the reply text, or the fallback when there is neither text nor a card", () => {
+    expect(replyOrFallback(assistantWith([text("Saved.")]))).toBe("Saved.");
+    expect(replyOrFallback(assistantWith([]))).toBe(TELEGRAM_COPY.noReply);
+    expect(replyOrFallback(undefined)).toBe("I couldn't produce a reply, please try again.");
+  });
+
+  it("stays empty when an approval card goes out instead", () => {
+    expect(replyOrFallback(pendingDelete([7]))).toBe("");
   });
 });

@@ -34,5 +34,6 @@ export const TELEGRAM_COPY = {
   approved: "Approved.",
   rejected: "Rejected. Nothing saved.",
   newConversation: "Started a new conversation.",
+  noReply: "I couldn't produce a reply, please try again.",
   help: 'Send me an expense like "lunch 12" or a receipt photo. Link your account first: open the app → Settings → Telegram.',
 } as const;

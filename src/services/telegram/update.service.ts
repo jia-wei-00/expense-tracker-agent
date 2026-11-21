@@ -7,9 +7,14 @@ import { chatIdOf, classifyUpdate } from "@/utils/telegram";
 
 /**
  * Routes one update from a chat's inbox. A throw leaves the update in the inbox
- * to be retried, so everything here must be safe to run again.
+ * to be retried, so everything here must be safe to run again; `retry` says
+ * this is such a rerun.
  */
-export async function handleUpdate(deps: TTelegramDeps, update: TTelegramUpdate): Promise<void> {
+export async function handleUpdate(
+  deps: TTelegramDeps,
+  update: TTelegramUpdate,
+  { retry }: { retry: boolean },
+): Promise<void> {
   const chatId = chatIdOf(update);
   if (chatId === undefined) return;
   const reply = (text: string) => deps.telegram.sendMessage({ chatId, text });
@@ -32,7 +37,7 @@ export async function handleUpdate(deps: TTelegramDeps, update: TTelegramUpdate)
       return;
     case "callback":
       // "callback" is only ever classified from a callback query.
-      if (update.callback_query) await handleCallback(deps, update.callback_query);
+      if (update.callback_query) await handleCallback(deps, update.callback_query, { retry });
       return;
     case "ignore":
       return;

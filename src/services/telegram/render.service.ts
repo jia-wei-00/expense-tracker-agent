@@ -1,16 +1,27 @@
 import { TELEGRAM_COPY, TELEGRAM_MESSAGE_MAX, TYPING_INTERVAL_MS } from "@/constants/telegram";
-import { pendingApprovals } from "@/services/ai/chat/approval.service";
+import { pendingApprovals, unexecutedApprovals } from "@/services/ai/chat/approval.service";
 import type { TChatMessage, TPendingToolPart } from "@/types/ai";
-import type { TAddExpensesInput, TCategory, TDeleteExpenseInput, TUpdateExpenseInput } from "@/types/ledger";
+import type { TCategoryOption } from "@/types/expense";
+import type { TAddExpensesInput, TDeleteExpenseInput, TUpdateExpenseInput } from "@/types/ledger";
 import type { TApprovalState, TTelegramClient } from "@/types/telegram";
 import { callsTag, formatCallbackData, splitMessage } from "@/utils/telegram";
-import { getToolName, isToolUIPart } from "ai";
+import { getToolName } from "ai";
 
 /** The text of an assistant reply, one paragraph per text part; tool parts are skipped. */
 export function replyText(message: TChatMessage | undefined): string {
   return (message?.parts ?? [])
     .flatMap((part) => (part.type === "text" && part.text.trim() ? [part.text.trim()] : []))
     .join("\n\n");
+}
+
+/**
+ * The text to send for `message`: its reply text, else a short fallback so a
+ * turn never ends in silence. Empty only when an approval card goes out instead.
+ */
+export function replyOrFallback(message: TChatMessage | undefined): string {
+  const text = replyText(message);
+  if (text !== "" || pendingApprovals(message).length > 0) return text;
+  return TELEGRAM_COPY.noReply;
 }
 
 /** Sends `text` in Telegram-sized chunks, the first one as a reply to `replyTo`. */
@@ -41,11 +52,11 @@ function plural(count: number, word: string): string {
   return count === 1 ? word : `${word}s`;
 }
 
-function categoryName(id: number, categories: TCategory[]): string {
+function categoryName(id: number, categories: TCategoryOption[]): string {
   return categories.find((category) => category.id === id)?.name ?? `#${id}`;
 }
 
-function addLines({ expenses }: TAddExpensesInput, categories: TCategory[]): string {
+function addLines({ expenses }: TAddExpensesInput, categories: TCategoryOption[]): string {
   const rows = expenses.map(
     (row) =>
       `• ${row.name} — ${money(row.amount)}${row.is_expense ? "" : " income"} (${categoryName(row.category, categories)})`,
@@ -53,7 +64,7 @@ function addLines({ expenses }: TAddExpensesInput, categories: TCategory[]): str
   return [`Add ${expenses.length} ${plural(expenses.length, "expense")}:`, ...rows].join("\n");
 }
 
-function updateLines({ id, ...patch }: TUpdateExpenseInput, categories: TCategory[]): string {
+function updateLines({ id, ...patch }: TUpdateExpenseInput, categories: TCategoryOption[]): string {
   const fields: string[] = [];
   if (patch.name !== undefined) fields.push(`name: ${patch.name}`);
   if (patch.amount !== undefined) fields.push(`amount: ${money(patch.amount)}`);
@@ -67,7 +78,7 @@ function deleteLine({ ids }: TDeleteExpenseInput): string {
   return `Delete ${plural(ids.length, "expense")} ${ids.map((id) => `#${id}`).join(", ")}`;
 }
 
-function describeCall(part: TPendingToolPart, categories: TCategory[]): string {
+function describeCall(part: TPendingToolPart, categories: TCategoryOption[]): string {
   if (part.type === "tool-addExpense") return addLines(part.input, categories);
   if (part.type === "tool-updateExpense") return updateLines(part.input, categories);
   if (part.type === "tool-deleteExpense") return deleteLine(part.input);
@@ -79,7 +90,7 @@ function describeCall(part: TPendingToolPart, categories: TCategory[]): string {
  * The approval card for the calls of `message` waiting for a decision, built
  * from their stored input (never model text); `undefined` when none wait.
  */
-export function approvalCard(message: TChatMessage, categories: TCategory[]): string | undefined {
+export function approvalCard(message: TChatMessage, categories: TCategoryOption[]): string | undefined {
   const pending = pendingApprovals(message);
   if (pending.length === 0) return undefined;
   return pending.map((part) => describeCall(part, categories)).join("\n\n");
@@ -123,15 +134,7 @@ export async function sendApprovalCard(
  */
 export function approvalState(message: TChatMessage | undefined): TApprovalState {
   if (pendingApprovals(message).length > 0) return "pending";
-  return unexecutedCallIds(message).length > 0 ? "approved-unexecuted" : "settled";
-}
-
-/** Ids of the calls approved but not yet run (no output). */
-function unexecutedCallIds(message: TChatMessage | undefined): string[] {
-  if (message?.role !== "assistant") return [];
-  return message.parts.flatMap((part) =>
-    isToolUIPart(part) && part.state === "approval-responded" && part.approval.approved ? [part.toolCallId] : [],
-  );
+  return unexecutedApprovals(message).length > 0 ? "approved-unexecuted" : "settled";
 }
 
 /**
@@ -139,9 +142,9 @@ function unexecutedCallIds(message: TChatMessage | undefined): string[] {
  * (a retried approval) the approved-unexecuted ones; `undefined` once settled.
  */
 export function cardTag(message: TChatMessage | undefined): string | undefined {
-  const pending = pendingApprovals(message).map(({ toolCallId }) => toolCallId);
-  const calls = pending.length > 0 ? pending : unexecutedCallIds(message);
-  return calls.length > 0 ? callsTag(calls) : undefined;
+  const pending = pendingApprovals(message);
+  const calls = pending.length > 0 ? pending : unexecutedApprovals(message);
+  return calls.length > 0 ? callsTag(calls.map(({ toolCallId }) => toolCallId)) : undefined;
 }
 
 /** Resolves after `ms`, or as soon as `signal` aborts. */
