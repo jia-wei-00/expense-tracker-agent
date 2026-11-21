@@ -31,6 +31,18 @@ export function turnResumeState(history: TChatMessage[], messageId: string): TTu
   return index === history.length - 1 ? "resume" : "duplicate";
 }
 
+/**
+ * The stored answer to this message when it is the session's last message:
+ * an earlier attempt saved the reply but failed to send it. The inbox drops
+ * Telegram redeliveries itself, so a duplicate reaching a turn is a retry.
+ */
+export function savedReply(history: TChatMessage[], messageId: string): TChatMessage | undefined {
+  const index = history.findIndex((message) => message.id === messageId);
+  const next = history[index + 1];
+  const answersLast = index !== -1 && index === history.length - 2;
+  return answersLast && next?.role === "assistant" ? next : undefined;
+}
+
 /** The reply for a quota refusal from `consumeAiUsage`; `undefined` for any other error. */
 export function quotaCopy(error: unknown): string | undefined {
   if (!(error instanceof ChatError)) return undefined;
@@ -74,7 +86,8 @@ function toUserMessage(message: TTelegramMessage, text: string): TChatMessage {
 /**
  * Picks the session, charges the quota and stores the user message (spec
  * §5.3). A retry of a stored but unanswered message resumes without charging;
- * an answered one is skipped. Quota comes before any write, so a 402/429
+ * an answered one resends its saved reply if that reply is the last message,
+ * else is skipped. Quota comes before any write, so a 402/429
  * leaves no session or message behind.
  */
 async function prepareDmTurn(
@@ -85,7 +98,10 @@ async function prepareDmTurn(
   const latest = await currentSession(admin, scope);
   const history = latest ? await loadMessages(admin, latest.id, tools) : [];
   const state = turnResumeState(history, userMessage.id);
-  if (state === "duplicate") return { kind: "skip" };
+  if (state === "duplicate") {
+    const reply = savedReply(history, userMessage.id);
+    return reply ? { kind: "resend", reply } : { kind: "skip" };
+  }
   if (state === "resume" && latest) return { kind: "run", sessionId: latest.id, messages: history };
 
   const refusal = await chargeTurn(admin, scope.userId);
@@ -145,7 +161,12 @@ export async function handleDmMessage(
     return;
   }
 
-  const reply = await withTyping(telegram, chatId, () => runAgent({ agent, messages: turn.messages }));
-  if (reply && reply.parts.length > 0) await saveMessage(admin, turn.sessionId, reply);
+  const reply =
+    turn.kind === "resend"
+      ? turn.reply
+      : await withTyping(telegram, chatId, () => runAgent({ agent, messages: turn.messages }));
+  if (turn.kind === "run" && reply && reply.parts.length > 0) {
+    await saveMessage(admin, turn.sessionId, reply);
+  }
   await sendReply(telegram, { chatId, replyTo: message.message_id, text: replyText(reply) });
 }

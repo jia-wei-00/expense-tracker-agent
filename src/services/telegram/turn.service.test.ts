@@ -3,7 +3,7 @@ import { HTTP_STATUS } from "@/constants/error";
 import { TELEGRAM_COPY, TYPING_INTERVAL_MS } from "@/constants/telegram";
 import { ChatError } from "@/services/ai/chat/chat.error";
 import { replyText, withTyping } from "@/services/telegram/render.service";
-import { quotaCopy, turnResumeState } from "@/services/telegram/turn.service";
+import { quotaCopy, savedReply, turnResumeState } from "@/services/telegram/turn.service";
 import type { TChatMessage, TChatMessagePart } from "@/types/ai";
 import type { TTelegramClient } from "@/types/telegram";
 
@@ -39,6 +39,26 @@ describe("turnResumeState", () => {
     expect(turnResumeState([u1, a1, u2], "tg-1-11")).toBe("resume");
     expect(turnResumeState([u1, a1, u2], "tg-1-10")).toBe("duplicate");
     expect(turnResumeState([], "tg-1-10")).toBe("new");
+  });
+});
+
+describe("savedReply", () => {
+  const u1 = userMsg("tg-1-10"),
+    a1 = assistantMsg("msg-a1"),
+    u2 = userMsg("tg-1-11"),
+    a2 = assistantMsg("msg-a2");
+
+  it("finds the reply when it is the last message, right after this one", () => {
+    expect(turnResumeState([u1, a1], "tg-1-10")).toBe("duplicate");
+    expect(savedReply([u1, a1], "tg-1-10")).toBe(a1);
+  });
+
+  it("is undefined for any other shape", () => {
+    expect(savedReply([u1, a1, u2, a2], "tg-1-10")).toBeUndefined();
+    expect(savedReply([u1, u2], "tg-1-10")).toBeUndefined();
+    expect(savedReply([u1, a1], "tg-1-99")).toBeUndefined();
+    expect(turnResumeState([u1], "tg-1-10")).toBe("resume");
+    expect(savedReply([u1], "tg-1-10")).toBeUndefined();
   });
 });
 

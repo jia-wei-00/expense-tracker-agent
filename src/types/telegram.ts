@@ -62,4 +62,5 @@ export type TTurnResumeState = "new" | "resume" | "duplicate";
 export type TDmTurn =
   | { kind: "run"; sessionId: string; messages: TChatMessage[] }
   | { kind: "refuse"; copy: string }
+  | { kind: "resend"; reply: TChatMessage }
   | { kind: "skip" };
