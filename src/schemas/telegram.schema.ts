@@ -55,3 +55,13 @@ export const telegramUpdateSchema = z.looseObject({
 });
 
 export const updateKindSchema = z.enum(["start", "help", "new", "message", "callback", "ignore"]);
+
+export const telegramEnvelopeSchema = z.looseObject({
+  ok: z.boolean(),
+  description: z.string().optional(),
+  result: z.unknown().optional(),
+});
+
+export const telegramSentMessageSchema = z.looseObject({ message_id: z.number() });
+
+export const telegramFileSchema = z.looseObject({ file_path: z.string() });
