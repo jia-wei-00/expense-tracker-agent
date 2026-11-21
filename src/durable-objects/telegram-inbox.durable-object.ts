@@ -6,7 +6,7 @@ import { createTelegramDeps } from "@/services/telegram/deps.service";
 import { handleUpdate } from "@/services/telegram/update.service";
 import type { TAppBindings } from "@/types/common";
 import type { TInboxRow, TTelegramDeps, TTelegramUpdate } from "@/types/telegram";
-import { inboxStep, withinRunBudget } from "@/utils/inbox";
+import { inboxStep, tombstoneCutoff, withinRunBudget } from "@/utils/inbox";
 import { chatIdOf, classifyUpdate } from "@/utils/telegram";
 
 /**
@@ -14,12 +14,13 @@ import { chatIdOf, classifyUpdate } from "@/utils/telegram";
  * update here and returns; an alarm then processes the chat's updates one at a
  * time, oldest first, so two quick messages never run concurrently.
  *
- * - Dedupe: `update_id` is the primary key, so a redelivered update that is
- *   still queued is ignored.
+ * - Dedupe: `update_id` is the primary key and a finished update stays as a
+ *   tombstone (`processed_at` set, body cleared) for `INBOX_TOMBSTONE_TTL_MS`,
+ *   so a redelivery of a queued or recently finished update is ignored.
  * - Retries: `attempts` is incremented before each try; a throw propagates and
  *   the runtime retries the alarm, keeping later updates queued behind it.
- * - Poison: an update seen past `INBOX_MAX_ATTEMPTS` is dropped, logged, and the
- *   chat is asked to resend.
+ * - Poison: an update seen past `INBOX_MAX_ATTEMPTS` is dropped (tombstoned),
+ *   logged, and the chat is asked to resend.
  */
 export class TelegramInbox extends DurableObject<TAppBindings> {
   constructor(ctx: DurableObjectState, env: TAppBindings) {
@@ -29,17 +30,20 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
         update_id integer primary key,
         body text not null,
         attempts integer not null default 0,
-        received_at integer not null
+        received_at integer not null,
+        processed_at integer
       )`);
   }
 
   async enqueue(update: TTelegramUpdate): Promise<void> {
-    this.ctx.storage.sql.exec(
+    const { rowsWritten } = this.ctx.storage.sql.exec(
       "insert into updates (update_id, body, received_at) values (?, ?, ?) on conflict (update_id) do nothing",
       update.update_id,
       JSON.stringify(update),
       Date.now(),
     );
+    // A known update_id (queued or tombstoned) is a redelivery: nothing to do.
+    if (rowsWritten === 0) return;
     if ((await this.ctx.storage.getAlarm()) === null) {
       await this.ctx.storage.setAlarm(Date.now());
     }
@@ -51,6 +55,10 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
     });
     const deps = createTelegramDeps(this.env);
     const startedAt = Date.now();
+    this.ctx.storage.sql.exec(
+      "delete from updates where processed_at < ?",
+      tombstoneCutoff(startedAt),
+    );
 
     while (withinRunBudget(startedAt, Date.now())) {
       const row = this.oldestRow();
@@ -63,7 +71,9 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
 
   private oldestRow(): TInboxRow | undefined {
     const [row] = this.ctx.storage.sql
-      .exec("select update_id, body, attempts from updates order by update_id limit 1")
+      .exec(
+        "select update_id, body, attempts from updates where processed_at is null order by update_id limit 1",
+      )
       .toArray();
     return row === undefined ? undefined : inboxRowSchema.parse(row);
   }
@@ -80,14 +90,14 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
     // schema changed in between; such a row can never succeed.
     const parsed = telegramUpdateSchema.safeParse(JSON.parse(row.body));
     if (!parsed.success) {
-      this.deleteRow(row.update_id);
+      this.markProcessed(row.update_id);
       logOutcome(row.update_id, undefined, "invalid");
       return;
     }
 
     const update = parsed.data;
     if (inboxStep(attempts) === "drop") {
-      this.deleteRow(row.update_id);
+      this.markProcessed(row.update_id);
       await dropPoison(deps, update);
       return;
     }
@@ -98,16 +108,21 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
       logOutcome(update.update_id, chatIdOf(update), `failed (attempt ${attempts})`, classifyUpdate(update));
       throw error;
     }
-    this.deleteRow(row.update_id);
+    this.markProcessed(row.update_id);
     logOutcome(update.update_id, chatIdOf(update), "processed", classifyUpdate(update));
   }
 
-  private deleteRow(updateId: number): void {
-    this.ctx.storage.sql.exec("delete from updates where update_id = ?", updateId);
+  /** Keeps the `update_id` as a tombstone so a redelivery is ignored on arrival. */
+  private markProcessed(updateId: number): void {
+    this.ctx.storage.sql.exec(
+      "update updates set processed_at = ?, body = '' where update_id = ?",
+      Date.now(),
+      updateId,
+    );
   }
 }
 
-/** Tells the chat its update was given up on. Best effort: the row is already gone. */
+/** Tells the chat its update was given up on. Best effort: the row is already tombstoned. */
 async function dropPoison(deps: TTelegramDeps, update: TTelegramUpdate): Promise<void> {
   const chatId = chatIdOf(update);
   logOutcome(update.update_id, chatId, "dropped", classifyUpdate(update));

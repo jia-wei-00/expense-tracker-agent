@@ -1,4 +1,8 @@
-import { INBOX_MAX_ATTEMPTS, INBOX_RUN_BUDGET_MS } from "@/constants/telegram";
+import {
+  INBOX_MAX_ATTEMPTS,
+  INBOX_RUN_BUDGET_MS,
+  INBOX_TOMBSTONE_TTL_MS,
+} from "@/constants/telegram";
 import type { TInboxStep } from "@/types/telegram";
 
 /**
@@ -12,4 +16,9 @@ export function inboxStep(attempts: number): TInboxStep {
 /** One alarm run stops taking new updates once its budget is spent (the runtime caps a run at 15 min). */
 export function withinRunBudget(startedAt: number, now: number): boolean {
   return now - startedAt < INBOX_RUN_BUDGET_MS;
+}
+
+/** Processed updates older than this (`processed_at`, epoch ms) are pruned. */
+export function tombstoneCutoff(now: number): number {
+  return now - INBOX_TOMBSTONE_TTL_MS;
 }

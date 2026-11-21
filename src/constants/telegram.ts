@@ -6,6 +6,8 @@ export const TELEGRAM_FILE_PREFIX = "telegram-file:";
 export const CALLBACK_PREFIX = "apv";
 export const INBOX_MAX_ATTEMPTS = 3;
 export const INBOX_RUN_BUDGET_MS = 10 * 60 * 1000;
+// How long a processed update_id is remembered so a late redelivery is ignored.
+export const INBOX_TOMBSTONE_TTL_MS = 24 * 60 * 60 * 1000;
 export const TYPING_INTERVAL_MS = 4000;
 export const LINK_TOKEN_LENGTH = 32;
 export const LINK_TOKEN_TTL_MS = 10 * 60 * 1000;

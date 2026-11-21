@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inboxStep, withinRunBudget } from "@/utils/inbox";
+import { inboxStep, tombstoneCutoff, withinRunBudget } from "@/utils/inbox";
 
 describe("inboxStep", () => {
   it("processes an update for its first three attempts", () => {
@@ -24,5 +24,12 @@ describe("withinRunBudget", () => {
 
   it("stops once the budget is spent", () => {
     expect(withinRunBudget(startedAt, startedAt + 10 * 60 * 1000)).toBe(false);
+  });
+});
+
+describe("tombstoneCutoff", () => {
+  it("keeps processed updates for 24 hours", () => {
+    const now = 1_000_000_000;
+    expect(tombstoneCutoff(now)).toBe(now - 24 * 60 * 60 * 1000);
   });
 });
