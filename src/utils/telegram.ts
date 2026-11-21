@@ -76,14 +76,32 @@ export function isTelegramIp(ip: string): boolean {
   return value !== undefined && TELEGRAM_IP_RANGES.some((range) => inCidr(value, range));
 }
 
-export function formatCallbackData({ approve, messageId }: TCallbackData): string {
-  return `${CALLBACK_PREFIX}:${approve ? 1 : 0}:${messageId}`;
+const FNV_OFFSET_BASIS = 0x811c9dc5;
+const FNV_PRIME = 0x01000193;
+
+/**
+ * An 8-hex-char tag of a set of tool call ids (FNV-1a 32-bit over the sorted
+ * ids), so a card's buttons only ever answer the calls the card showed. It
+ * guards against a stale button, not an attacker: ownership is checked separately.
+ */
+export function callsTag(toolCallIds: string[]): string {
+  // The separator can't appear in an id, so ["a", "b"] and ["ab"] differ.
+  const input = [...toolCallIds].sort().join("\n");
+  let hash = FNV_OFFSET_BASIS;
+  for (let index = 0; index < input.length; index++) {
+    hash = Math.imul(hash ^ input.charCodeAt(index), FNV_PRIME);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+export function formatCallbackData({ approve, messageId, tag }: TCallbackData): string {
+  return `${CALLBACK_PREFIX}:${approve ? 1 : 0}:${messageId}:${tag}`;
 }
 
 export function parseCallbackData(raw: string): TCallbackData | undefined {
-  const match = /^([a-z]+):([01]):(\d+)$/.exec(raw);
-  if (match?.[1] !== CALLBACK_PREFIX) return undefined;
-  return { approve: match[2] === "1", messageId: Number(match[3]) };
+  const match = /^([a-z]+):([01]):(\d+):([0-9a-f]{8})$/.exec(raw);
+  if (match?.[1] !== CALLBACK_PREFIX || match[4] === undefined) return undefined;
+  return { approve: match[2] === "1", messageId: Number(match[3]), tag: match[4] };
 }
 
 export function telegramMessageId(chatId: number, messageId: number): string {

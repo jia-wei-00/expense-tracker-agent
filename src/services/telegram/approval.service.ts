@@ -9,7 +9,10 @@ import { createLedger } from "@/services/ledger/ledger.service";
 import { linkedUserId } from "@/services/telegram/link.service";
 import {
   approvalCard,
+  approvalState,
+  cardTag,
   continuationOf,
+  decidedCardText,
   replyText,
   sendApprovalCard,
   sendReply,
@@ -19,7 +22,6 @@ import type { TChatMessage } from "@/types/ai";
 import type { TSupabaseAdminClient } from "@/types/common";
 import type { TLedger } from "@/types/ledger";
 import type {
-  TApprovalState,
   TCallbackOutcome,
   TCardMessage,
   TCardSession,
@@ -29,7 +31,6 @@ import type {
   TTelegramSessionScope,
 } from "@/types/telegram";
 import { parseCallbackData } from "@/utils/telegram";
-import { isToolUIPart } from "ai";
 
 /** True only when the card's session is this user's conversation in this Telegram chat. */
 export function ownsCard(session: TCardSession | null, scope: TTelegramSessionScope): boolean {
@@ -39,19 +40,6 @@ export function ownsCard(session: TCardSession | null, scope: TTelegramSessionSc
     session.telegram_chat_id === scope.chatId &&
     session.telegram_user_id === scope.telegramUserId
   );
-}
-
-/**
- * Where the decision on a card's message stands: calls still waiting
- * (`pending`), approved but not yet run (`approved-unexecuted`: the
- * continuation failed after the decision was stored), or done (`settled`).
- */
-export function approvalState(message: TChatMessage | undefined): TApprovalState {
-  if (pendingApprovals(message).length > 0) return "pending";
-  const unexecuted =
-    message?.role === "assistant" &&
-    message.parts.some((part) => isToolUIPart(part) && part.state === "approval-responded" && part.approval.approved);
-  return unexecuted ? "approved-unexecuted" : "settled";
 }
 
 /** The toast for an `applyApprovals` refusal; `undefined` for any other error. */
@@ -93,13 +81,14 @@ export async function offerApproval(
     ledger: TLedger;
   },
 ): Promise<void> {
-  if (!reply || pendingApprovals(reply).length === 0) return;
+  const tag = cardTag(reply);
+  if (!reply || pendingApprovals(reply).length === 0 || tag === undefined) return;
   const [categories, id] = await Promise.all([
     ledger.categories(),
     rowId ?? messageRowId(admin, sessionId, reply.id),
   ]);
   const text = approvalCard(reply, categories);
-  if (text !== undefined) await sendApprovalCard(telegram, { chatId, rowId: id, text });
+  if (text !== undefined) await sendApprovalCard(telegram, { chatId, rowId: id, tag, text });
 }
 
 /** The card's row and its session; `undefined` for an unknown id. */
@@ -165,8 +154,12 @@ async function decideCallback({ env, admin }: TTelegramDeps, query: TTelegramCal
   const ledger = createLedger({ db: admin, kv: env.CACHE, userId });
   const agent = chatAgent({ env, ledger, channel: "telegram-dm" });
   const history = await loadMessages(admin, row.session_id, agent.tools);
-  // `applyApprovals` resolves the last message; a newer turn superseded this card.
-  if (history.at(-1)?.id !== row.ui_id) return { kind: "closed", card, text: TELEGRAM_COPY.approvalAnswered };
+  // `applyApprovals` resolves the last message; a newer turn superseded this
+  // card. A tag mismatch is a stale button: the message now waits on other calls.
+  const last = history.at(-1);
+  if (last?.id !== row.ui_id || cardTag(last) !== data.tag) {
+    return { kind: "closed", card, text: TELEGRAM_COPY.approvalAnswered };
+  }
 
   const sessionId = row.session_id;
   // The approved outcome as the history stands; `applyDecision` resolves it first.
@@ -176,33 +169,34 @@ async function decideCallback({ env, admin }: TTelegramDeps, query: TTelegramCal
   // Residual risk: if the tool's write succeeded and only `saveMessage`
   // failed, this reruns the tool (a possible duplicate row), the same window
   // as the app's `onEnd` save. A Reject tap never reaches this state.
-  if (approvalState(history.at(-1)) === "approved-unexecuted") {
+  if (approvalState(last) === "approved-unexecuted") {
     return data.approve ? resume : { kind: "closed", card, text: TELEGRAM_COPY.approvalAnswered };
   }
   return applyDecision(admin, data.approve, resume);
 }
 
-/** Best effort: the decision is already stored, so a failed toast must not fail it. */
-async function answerQuietly(telegram: TTelegramClient, queryId: string, text?: string): Promise<void> {
-  await telegram.answerCallbackQuery(queryId, text).catch((error: unknown) => {
-    console.warn("telegram answerCallbackQuery failed:", error instanceof Error ? error.message : String(error));
+/**
+ * Best effort for the Telegram calls around a decision: it is already stored,
+ * so a failed toast or card edit must not fail the update (a retry would see
+ * a 409) or cost the continuation.
+ */
+async function bestEffort(label: string, call: () => Promise<void>): Promise<void> {
+  await call().catch((error: unknown) => {
+    console.warn(`telegram ${label} failed:`, error instanceof Error ? error.message : String(error));
   });
 }
 
 /**
- * Appends `suffix` to the card and removes its buttons. Best effort, like the
- * toast: a cosmetic failure must not cost the continuation.
+ * Appends `suffix` to the card (unless it would not fit) and removes its
+ * buttons. The removal is attempted on its own: a failed text edit must never
+ * leave a live button behind. A retried edit is a no-op ("not modified").
  */
 async function closeCard(telegram: TTelegramClient, card: TCardMessage, suffix?: string): Promise<void> {
-  try {
-    // A retried edit is a no-op ("not modified" is ignored); never append twice.
-    if (suffix !== undefined && card.text !== undefined && !card.text.endsWith(`\n\n${suffix}`)) {
-      await telegram.editMessageText(card.chatId, card.messageId, `${card.text}\n\n${suffix}`);
-    }
-    await telegram.editMessageReplyMarkup(card.chatId, card.messageId);
-  } catch (error) {
-    console.warn("telegram card edit failed:", error instanceof Error ? error.message : String(error));
+  const text = suffix === undefined ? undefined : decidedCardText(card.text, suffix);
+  if (text !== undefined) {
+    await bestEffort("card text edit", () => telegram.editMessageText(card.chatId, card.messageId, text));
   }
+  await bestEffort("card buttons removal", () => telegram.editMessageReplyMarkup(card.chatId, card.messageId));
 }
 
 /** Runs the approved calls (no quota: a continuation is never counted) and sends what it adds. */
@@ -214,7 +208,8 @@ async function continueApproved(
     runAgent({ agent, messages, download: telegram.downloadFile }),
   );
   const before = messages.at(-1);
-  if (!reply || !before) return;
+  // Thrown so the inbox retries; the retry resumes from `approved-unexecuted`.
+  if (!reply || !before) throw new Error("approval continuation produced no message");
   const rowId = await saveMessage(admin, sessionId, reply);
   const added = continuationOf(before, reply);
   await sendReply(telegram, { chatId: card.chatId, replyTo: card.messageId, text: replyText(added) });
@@ -227,11 +222,12 @@ async function continueApproved(
  */
 export async function handleCallback(deps: TTelegramDeps, query: TTelegramCallbackQuery): Promise<void> {
   const { telegram } = deps;
+  const answer = (text?: string) => bestEffort("answerCallbackQuery", () => telegram.answerCallbackQuery(query.id, text));
   const outcome = await decideCallback(deps, query).catch(async (error: unknown) => {
-    await answerQuietly(telegram, query.id);
+    await answer();
     throw error;
   });
-  await answerQuietly(telegram, query.id, callbackToast(outcome));
+  await answer(callbackToast(outcome));
   console.log(JSON.stringify({ log: "telegram_callback", chat_id: query.message?.chat.id, outcome: outcome.kind }));
 
   switch (outcome.kind) {

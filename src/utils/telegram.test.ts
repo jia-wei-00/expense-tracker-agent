@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  callsTag,
   chatIdOf,
   classifyUpdate,
   commandArgs,
@@ -61,7 +62,7 @@ describe("classifyUpdate", () => {
     expect(classifyUpdate(privateText("/help"))).toBe("help");
     expect(classifyUpdate(privateText("/new"))).toBe("new");
     expect(classifyUpdate(privateText("lunch 12"))).toBe("message");
-    expect(classifyUpdate(callback("apv:1:42"))).toBe("callback");
+    expect(classifyUpdate(callback("apv:1:42:0a1b2c3d"))).toBe("callback");
   });
   it("ignores group chats and membership updates in slice 1", () => {
     expect(classifyUpdate(groupText("@bot lunch 12"))).toBe("ignore");
@@ -70,7 +71,7 @@ describe("classifyUpdate", () => {
 });
 it("chatIdOf", () => {
   expect(chatIdOf(privateText("hi"))).toBe(7);
-  expect(chatIdOf(callback("apv:1:1"))).toBe(7);
+  expect(chatIdOf(callback("apv:1:1:0a1b2c3d"))).toBe(7);
   expect(chatIdOf(myChatMember("kicked"))).toBe(7);
 });
 it("parseStartToken", () => {
@@ -84,13 +85,27 @@ it("isTelegramIp", () => {
   expect(isTelegramIp("not-an-ip")).toBe(false);
 });
 it("callback data round-trips and rejects junk", () => {
-  expect(formatCallbackData({ approve: true, messageId: 881 })).toBe("apv:1:881");
-  expect(parseCallbackData("apv:0:881")).toEqual({ approve: false, messageId: 881 });
-  expect(parseCallbackData("apv:2:881")).toBeUndefined();
-  expect(parseCallbackData("xyz:1:881")).toBeUndefined();
-  expect(
-    formatCallbackData({ approve: true, messageId: Number.MAX_SAFE_INTEGER }).length,
-  ).toBeLessThanOrEqual(64);
+  expect(formatCallbackData({ approve: true, messageId: 881, tag: "0a1b2c3d" })).toBe("apv:1:881:0a1b2c3d");
+  expect(parseCallbackData("apv:0:881:0a1b2c3d")).toEqual({ approve: false, messageId: 881, tag: "0a1b2c3d" });
+  const data = { approve: true, messageId: 42, tag: callsTag(["call-1"]) };
+  expect(parseCallbackData(formatCallbackData(data))).toEqual(data);
+  expect(parseCallbackData("apv:2:881:0a1b2c3d")).toBeUndefined();
+  expect(parseCallbackData("xyz:1:881:0a1b2c3d")).toBeUndefined();
+  // A card from before tags existed, a short tag and an uppercase one.
+  expect(parseCallbackData("apv:1:881")).toBeUndefined();
+  expect(parseCallbackData("apv:1:881:0a1b2c")).toBeUndefined();
+  expect(parseCallbackData("apv:1:881:0A1B2C3D")).toBeUndefined();
+  const longest = formatCallbackData({ approve: true, messageId: Number.MAX_SAFE_INTEGER, tag: "ffffffff" });
+  expect(new TextEncoder().encode(longest).byteLength).toBeLessThanOrEqual(64);
+});
+it("callsTag is 8 hex chars, ignores order and tells call sets apart", () => {
+  const tag = callsTag(["call-a", "call-b"]);
+  expect(tag).toMatch(/^[0-9a-f]{8}$/);
+  expect(callsTag(["call-b", "call-a"])).toBe(tag);
+  expect(callsTag(["call-a"])).not.toBe(tag);
+  expect(callsTag(["call-a", "call-c"])).not.toBe(tag);
+  expect(callsTag(["call-ab"])).not.toBe(callsTag(["call-a", "b"]));
+  expect(callsTag([])).toMatch(/^[0-9a-f]{8}$/);
 });
 it("telegramMessageId", () => {
   expect(telegramMessageId(12345, 67)).toBe("tg-12345-67");

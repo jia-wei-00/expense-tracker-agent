@@ -1,10 +1,10 @@
-import { TELEGRAM_COPY, TYPING_INTERVAL_MS } from "@/constants/telegram";
+import { TELEGRAM_COPY, TELEGRAM_MESSAGE_MAX, TYPING_INTERVAL_MS } from "@/constants/telegram";
 import { pendingApprovals } from "@/services/ai/chat/approval.service";
 import type { TChatMessage, TPendingToolPart } from "@/types/ai";
 import type { TAddExpensesInput, TCategory, TDeleteExpenseInput, TUpdateExpenseInput } from "@/types/ledger";
-import type { TTelegramClient } from "@/types/telegram";
-import { formatCallbackData, splitMessage } from "@/utils/telegram";
-import { getToolName } from "ai";
+import type { TApprovalState, TTelegramClient } from "@/types/telegram";
+import { callsTag, formatCallbackData, splitMessage } from "@/utils/telegram";
+import { getToolName, isToolUIPart } from "ai";
 
 /** The text of an assistant reply, one paragraph per text part; tool parts are skipped. */
 export function replyText(message: TChatMessage | undefined): string {
@@ -85,20 +85,63 @@ export function approvalCard(message: TChatMessage, categories: TCategory[]): st
   return pending.map((part) => describeCall(part, categories)).join("\n\n");
 }
 
-/** Sends `text` with [Approve] [Reject] buttons for every pending call on `chat_message` row `rowId`. */
+/**
+ * The card text with the decision appended; `undefined` when there is
+ * nothing to edit: the text is unknown, already carries the decision, or
+ * would pass Telegram's limit.
+ */
+export function decidedCardText(text: string | undefined, suffix: string): string | undefined {
+  if (text === undefined || text.endsWith(`\n\n${suffix}`)) return undefined;
+  const decided = `${text}\n\n${suffix}`;
+  return decided.length <= TELEGRAM_MESSAGE_MAX ? decided : undefined;
+}
+
+/**
+ * Sends `text` with [Approve] [Reject] buttons for the pending calls on
+ * `chat_message` row `rowId`; `tag` (`callsTag` of those calls) binds the
+ * buttons to exactly the calls the card shows.
+ */
 export async function sendApprovalCard(
   telegram: TTelegramClient,
-  { chatId, rowId, text }: { chatId: number; rowId: number; text: string },
+  { chatId, rowId, tag, text }: { chatId: number; rowId: number; tag: string; text: string },
 ): Promise<void> {
   const buttons = [
-    { text: TELEGRAM_COPY.approve, data: formatCallbackData({ approve: true, messageId: rowId }) },
-    { text: TELEGRAM_COPY.reject, data: formatCallbackData({ approve: false, messageId: rowId }) },
+    { text: TELEGRAM_COPY.approve, data: formatCallbackData({ approve: true, messageId: rowId, tag }) },
+    { text: TELEGRAM_COPY.reject, data: formatCallbackData({ approve: false, messageId: rowId, tag }) },
   ];
   const chunks = splitMessage(text);
   for (const [index, chunk] of chunks.entries()) {
     // Sequential on purpose; the buttons go under the last chunk.
     await telegram.sendMessage({ chatId, text: chunk, buttons: index === chunks.length - 1 ? buttons : undefined });
   }
+}
+
+/**
+ * Where the decision on a card's message stands: calls still waiting
+ * (`pending`), approved but not yet run (`approved-unexecuted`: the
+ * continuation failed after the decision was stored), or done (`settled`).
+ */
+export function approvalState(message: TChatMessage | undefined): TApprovalState {
+  if (pendingApprovals(message).length > 0) return "pending";
+  return unexecutedCallIds(message).length > 0 ? "approved-unexecuted" : "settled";
+}
+
+/** Ids of the calls approved but not yet run (no output). */
+function unexecutedCallIds(message: TChatMessage | undefined): string[] {
+  if (message?.role !== "assistant") return [];
+  return message.parts.flatMap((part) =>
+    isToolUIPart(part) && part.state === "approval-responded" && part.approval.approved ? [part.toolCallId] : [],
+  );
+}
+
+/**
+ * The tag of the calls a card for `message` stands for: the pending ones, else
+ * (a retried approval) the approved-unexecuted ones; `undefined` once settled.
+ */
+export function cardTag(message: TChatMessage | undefined): string | undefined {
+  const pending = pendingApprovals(message).map(({ toolCallId }) => toolCallId);
+  const calls = pending.length > 0 ? pending : unexecutedCallIds(message);
+  return calls.length > 0 ? callsTag(calls) : undefined;
 }
 
 /** Resolves after `ms`, or as soon as `signal` aborts. */

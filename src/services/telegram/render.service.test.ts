@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { approvalCard, continuationOf } from "@/services/telegram/render.service";
+import { TELEGRAM_MESSAGE_MAX } from "@/constants/telegram";
+import {
+  approvalCard,
+  approvalState,
+  cardTag,
+  continuationOf,
+  decidedCardText,
+} from "@/services/telegram/render.service";
+import { callsTag } from "@/utils/telegram";
 import type { TChatMessage, TChatMessagePart } from "@/types/ai";
 import type { TAddExpenseInput } from "@/types/ledger";
 
@@ -96,5 +104,71 @@ describe("continuationOf", () => {
     const before = assistantWith([text("Adding lunch."), ...pendingAdd([lunch]).parts]);
     const after = assistantWith([...before.parts, text("Saved.")]);
     expect(continuationOf(before, after).parts).toEqual([text("Saved.")]);
+  });
+});
+
+describe("decidedCardText", () => {
+  it("appends the decision once and never past Telegram's limit", () => {
+    expect(decidedCardText("Delete expense #7", "Approved.")).toBe("Delete expense #7\n\nApproved.");
+    expect(decidedCardText("Delete expense #7\n\nApproved.", "Approved.")).toBeUndefined();
+    expect(decidedCardText(undefined, "Approved.")).toBeUndefined();
+    const full = "x".repeat(TELEGRAM_MESSAGE_MAX - 5);
+    expect(decidedCardText(full, "Rejected. Nothing saved.")).toBeUndefined();
+  });
+});
+
+const input = { ids: [12] };
+const requested: TChatMessagePart = {
+  type: "tool-deleteExpense",
+  toolCallId: "call-1",
+  state: "approval-requested",
+  input,
+  approval: { id: "a-1" },
+};
+const responded: TChatMessagePart = {
+  type: "tool-deleteExpense",
+  toolCallId: "call-2",
+  state: "approval-responded",
+  input,
+  approval: { id: "a-2", approved: true },
+};
+const executed: TChatMessagePart = {
+  type: "tool-deleteExpense",
+  toolCallId: "call-3",
+  state: "output-available",
+  input,
+  output: { ok: true, data: [{ id: 12 }] },
+  approval: { id: "a-3", approved: true },
+};
+const denied: TChatMessagePart = {
+  type: "tool-deleteExpense",
+  toolCallId: "call-4",
+  state: "output-denied",
+  input,
+  approval: { id: "a-4", approved: false },
+};
+
+describe("approvalState", () => {
+  it("is pending while any call waits for a decision", () => {
+    expect(approvalState(assistantWith([requested, { ...requested, toolCallId: "call-5" }]))).toBe("pending");
+  });
+
+  it("is approved-unexecuted when approved calls have no output yet", () => {
+    expect(approvalState(assistantWith([responded, { ...responded, toolCallId: "call-6" }]))).toBe("approved-unexecuted");
+    expect(approvalState(assistantWith([executed, responded]))).toBe("approved-unexecuted");
+  });
+
+  it("cardTag binds a card to the calls it shows: pending ones, else the approved-unexecuted ones", () => {
+    expect(cardTag(assistantWith([executed, requested, { ...requested, toolCallId: "call-5" }]))).toBe(
+      callsTag(["call-1", "call-5"]),
+    );
+    expect(cardTag(assistantWith([executed, responded]))).toBe(callsTag(["call-2"]));
+    expect(cardTag(assistantWith([executed, denied]))).toBeUndefined();
+  });
+
+  it("is settled once every call has an output or was denied", () => {
+    expect(approvalState(assistantWith([executed, denied]))).toBe("settled");
+    expect(approvalState(assistantWith([{ type: "text", text: "hi" }]))).toBe("settled");
+    expect(approvalState(undefined)).toBe("settled");
   });
 });
