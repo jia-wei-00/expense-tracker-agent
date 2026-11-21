@@ -36,15 +36,16 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
   }
 
   async enqueue(update: TTelegramUpdate): Promise<void> {
-    const { rowsWritten } = this.ctx.storage.sql.exec(
+    // A known update_id (queued or tombstoned) is a redelivery: not stored again.
+    this.ctx.storage.sql.exec(
       "insert into updates (update_id, body, received_at) values (?, ?, ?) on conflict (update_id) do nothing",
       update.update_id,
       JSON.stringify(update),
       Date.now(),
     );
-    // A known update_id (queued or tombstoned) is a redelivery: nothing to do.
-    if (rowsWritten === 0) return;
-    if ((await this.ctx.storage.getAlarm()) === null) {
+    // Checked even for a redelivery: rows left waiting without an alarm (the
+    // runtime gave up retrying one) start moving again.
+    if (this.hasUnprocessed() && (await this.ctx.storage.getAlarm()) === null) {
       await this.ctx.storage.setAlarm(Date.now());
     }
   }
@@ -69,6 +70,10 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
     if (this.oldestRow()) await this.ctx.storage.setAlarm(Date.now());
   }
 
+  private hasUnprocessed(): boolean {
+    return this.ctx.storage.sql.exec("select 1 from updates where processed_at is null limit 1").toArray().length > 0;
+  }
+
   private oldestRow(): TInboxRow | undefined {
     const [row] = this.ctx.storage.sql
       .exec(
@@ -79,6 +84,7 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
   }
 
   private async processRow(deps: TTelegramDeps, row: TInboxRow): Promise<void> {
+    const startedAt = Date.now();
     const attempts = row.attempts + 1;
     this.ctx.storage.sql.exec(
       "update updates set attempts = ? where update_id = ?",
@@ -91,25 +97,25 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
     const parsed = telegramUpdateSchema.safeParse(JSON.parse(row.body));
     if (!parsed.success) {
       this.markProcessed(row.update_id);
-      logOutcome(row.update_id, undefined, "invalid");
+      logOutcome({ updateId: row.update_id, outcome: "invalid", startedAt });
       return;
     }
 
     const update = parsed.data;
     if (inboxStep(attempts) === "drop") {
       this.markProcessed(row.update_id);
-      await dropPoison(deps, update);
+      await dropPoison(deps, update, startedAt);
       return;
     }
 
     try {
       await handleUpdate(deps, update, { retry: attempts > 1 });
     } catch (error) {
-      logOutcome(update.update_id, chatIdOf(update), `failed (attempt ${attempts})`, classifyUpdate(update));
+      logOutcome({ update, outcome: `failed (attempt ${attempts})`, startedAt });
       throw error;
     }
     this.markProcessed(row.update_id);
-    logOutcome(update.update_id, chatIdOf(update), "processed", classifyUpdate(update));
+    logOutcome({ update, outcome: "processed", startedAt });
   }
 
   /** Keeps the `update_id` as a tombstone so a redelivery is ignored on arrival. */
@@ -123,9 +129,9 @@ export class TelegramInbox extends DurableObject<TAppBindings> {
 }
 
 /** Tells the chat its update was given up on. Best effort: the row is already tombstoned. */
-async function dropPoison(deps: TTelegramDeps, update: TTelegramUpdate): Promise<void> {
+async function dropPoison(deps: TTelegramDeps, update: TTelegramUpdate, startedAt: number): Promise<void> {
   const chatId = chatIdOf(update);
-  logOutcome(update.update_id, chatId, "dropped", classifyUpdate(update));
+  logOutcome({ update, outcome: "dropped", startedAt });
   if (chatId === undefined) return;
   try {
     await deps.telegram.sendMessage({ chatId, text: TELEGRAM_COPY.poisonUpdate });
@@ -134,6 +140,21 @@ async function dropPoison(deps: TTelegramDeps, update: TTelegramUpdate): Promise
   }
 }
 
-function logOutcome(updateId: number, chatId: number | undefined, outcome: string, kind?: string): void {
-  console.log(JSON.stringify({ log: "telegram_inbox", update_id: updateId, chat_id: chatId, kind, outcome }));
+/** One log line per update outcome (spec §6); an unparsable row has only its id. */
+function logOutcome({ update, updateId = update?.update_id, outcome, startedAt }: {
+  update?: TTelegramUpdate;
+  updateId?: number;
+  outcome: string;
+  startedAt: number;
+}): void {
+  console.log(
+    JSON.stringify({
+      log: "telegram_inbox",
+      update_id: updateId,
+      chat_id: update && chatIdOf(update),
+      kind: update && classifyUpdate(update),
+      outcome,
+      duration_ms: Date.now() - startedAt,
+    }),
+  );
 }
