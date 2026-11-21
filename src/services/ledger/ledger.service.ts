@@ -8,6 +8,7 @@ import type {
   TLedgerScope,
   TListExpensesInput,
 } from "@/types/ledger";
+import { findUnknownCategoryIds } from "@/utils/category";
 
 // Every query below filters on `user_id` (and every insert sets it) because
 // the service-role client bypasses RLS: these filters are what keep one user
@@ -78,11 +79,24 @@ const summary = async (
   return data[0] ?? { balance: 0, total_income: 0, total_expenses: 0 };
 };
 
+/**
+ * Throws unless every id is one of the user's categories. The category ids
+ * come from the model, and `expense_category` is readable by every user, so
+ * without this a record could point at (and later show) another user's
+ * category.
+ */
+const assertOwnCategories = async (scope: TLedgerScope, ids: number[]) => {
+  const unknown = findUnknownCategoryIds(await categories(scope), ids);
+  if (unknown.length === 0) return;
+  const label = unknown.length === 1 ? "id" : "ids";
+  throw new Error(`Unknown category ${label} ${unknown.join(", ")}`);
+};
+
 /** One bulk insert: PostgREST writes the whole batch or none of it. */
-const addExpenses = async (
-  { db, userId }: TLedgerScope,
-  rows: TAddExpenseInput[],
-) => {
+const addExpenses = async (scope: TLedgerScope, rows: TAddExpenseInput[]) => {
+  const { db, userId } = scope;
+  await assertOwnCategories(scope, rows.map((row) => row.category));
+
   const { data, error } = await db
     .from("expense")
     .insert(rows.map((row) => ({ ...row, user_id: userId })))
@@ -93,10 +107,14 @@ const addExpenses = async (
 };
 
 const updateExpense = async (
-  { db, userId }: TLedgerScope,
+  scope: TLedgerScope,
   id: number,
   { name, amount, category, is_expense, spend_date }: TExpensePatch,
 ) => {
+  const { db, userId } = scope;
+  // `null` clears the category, which points at nobody's category.
+  if (category != null) await assertOwnCategories(scope, [category]);
+
   // Copied field by field so a wider object can never change `id` or `user_id`.
   const { data, error } = await db
     .from("expense")
