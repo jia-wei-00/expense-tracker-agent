@@ -13,6 +13,12 @@ import { findUnknownCategoryIds } from "@/utils/category";
 // Every query below filters on `user_id` (and every insert sets it) because
 // the service-role client bypasses RLS: these filters are what keep one user
 // from reading or changing another's records.
+//
+// Reads that embed `expense_category(name)` also filter the embed by
+// `expense_category.user_id`: a row can reference another user's category
+// (the FK check ignores ownership), and the embed must not show its name.
+// Without `!inner` that filter only nulls a foreign embed; it never drops the
+// expense row itself.
 
 const EXPENSE_WITH_CATEGORY =
   "id, name, amount, spend_date, is_expense, expense_category(name)";
@@ -39,6 +45,7 @@ const listExpenses = async (
     .from("expense")
     .select(EXPENSE_WITH_CATEGORY)
     .eq("user_id", userId)
+    .eq("expense_category.user_id", userId)
     .order("spend_date", { ascending: false })
     .limit(limit);
 
@@ -58,6 +65,7 @@ const getExpense = async ({ db, userId }: TLedgerScope, id: number) => {
     .select(EXPENSE_WITH_CATEGORY)
     .eq("id", id)
     .eq("user_id", userId)
+    .eq("expense_category.user_id", userId)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
@@ -99,7 +107,18 @@ const addExpenses = async (scope: TLedgerScope, rows: TAddExpenseInput[]) => {
 
   const { data, error } = await db
     .from("expense")
-    .insert(rows.map((row) => ({ ...row, user_id: userId })))
+    // Copied field by field, like `updateExpense`, so nothing but these
+    // columns (and our `user_id`) is ever written.
+    .insert(
+      rows.map(({ name, amount, category, is_expense, spend_date }) => ({
+        name,
+        amount,
+        category,
+        is_expense,
+        spend_date,
+        user_id: userId,
+      })),
+    )
     .select(EXPENSE_RECORD);
 
   if (error) throw new Error(error.message);
