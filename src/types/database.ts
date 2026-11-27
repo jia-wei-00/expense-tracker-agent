@@ -112,6 +112,8 @@ export type Database = {
         Row: {
           created_at: string;
           id: string;
+          telegram_chat_id: number | null;
+          telegram_user_id: number | null;
           title: string | null;
           updated_at: string;
           user_id: string;
@@ -119,6 +121,8 @@ export type Database = {
         Insert: {
           created_at?: string;
           id?: string;
+          telegram_chat_id?: number | null;
+          telegram_user_id?: number | null;
           title?: string | null;
           updated_at?: string;
           user_id?: string;
@@ -126,6 +130,8 @@ export type Database = {
         Update: {
           created_at?: string;
           id?: string;
+          telegram_chat_id?: number | null;
+          telegram_user_id?: number | null;
           title?: string | null;
           updated_at?: string;
           user_id?: string;
@@ -362,6 +368,10 @@ export type Database = {
           push_platform: string | null;
           push_token: string | null;
           store: string | null;
+          telegram_link_expires_at: string | null;
+          telegram_link_token: string | null;
+          telegram_linked_at: string | null;
+          telegram_user_id: number | null;
           tier: string;
           trial_used: boolean;
           updated_at: string;
@@ -383,6 +393,10 @@ export type Database = {
           push_platform?: string | null;
           push_token?: string | null;
           store?: string | null;
+          telegram_link_expires_at?: string | null;
+          telegram_link_token?: string | null;
+          telegram_linked_at?: string | null;
+          telegram_user_id?: number | null;
           tier?: string;
           trial_used?: boolean;
           updated_at?: string;
@@ -404,6 +418,10 @@ export type Database = {
           push_platform?: string | null;
           push_token?: string | null;
           store?: string | null;
+          telegram_link_expires_at?: string | null;
+          telegram_link_token?: string | null;
+          telegram_linked_at?: string | null;
+          telegram_user_id?: number | null;
           tier?: string;
           trial_used?: boolean;
           updated_at?: string;
@@ -497,6 +515,7 @@ export type Database = {
           used: number;
         }[];
       };
+      create_telegram_link_token: { Args: never; Returns: string };
       get_expense_stats: {
         Args: { p_month?: number; p_user_id: string; p_year?: number };
         Returns: {
@@ -507,6 +526,10 @@ export type Database = {
       };
       has_active_plan: { Args: never; Returns: boolean };
       import_local_data: { Args: { payload: Json }; Returns: Json };
+      link_telegram: {
+        Args: { p_telegram_user_id: number; p_token: string };
+        Returns: string;
+      };
       link_whatsapp: { Args: { p_phone: string }; Returns: undefined };
       process_recurring_expenses: { Args: never; Returns: undefined };
       purge_lapsed_user_data: { Args: never; Returns: number };
@@ -524,6 +547,7 @@ export type Database = {
         };
         Returns: string;
       };
+      unlink_telegram: { Args: never; Returns: undefined };
       unlink_whatsapp: { Args: never; Returns: undefined };
     };
     Enums: {

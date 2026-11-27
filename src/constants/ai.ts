@@ -22,3 +22,7 @@ export const MESSAGE_TYPE_BY_ROLE = {
   assistant: "ai",
   system: "system",
 } as const;
+
+/** Denial reason for an approved call that never ran (its run failed) when the user moves on. */
+export const UNEXECUTED_REASON =
+  "The user approved this action, but it was interrupted before it finished. Treat it as not done.";

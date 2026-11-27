@@ -16,6 +16,8 @@ export type TApproval = Extract<TAiChat, { approvals: unknown }>["approvals"][nu
 
 export type TChatMessageMetadata = z.infer<typeof chatMetadataSchema>;
 
+export type TChatAgent = ReturnType<typeof chatAgent>;
+
 /** Tools of the chat agent; stored tool parts are validated against these. */
 export type TChatTools = ReturnType<typeof chatAgent>["tools"];
 
@@ -28,3 +30,11 @@ export type TChatMessage = InferAgentUIMessage<
 export type TChatMessagePart = TChatMessage["parts"][number];
 export type TToolPart = Extract<TChatMessagePart, { toolCallId: string }>;
 export type TPendingToolPart = Extract<TToolPart, { state: "approval-requested" }>;
+/** A call the user approved that has not run yet (no output stored). */
+export type TApprovedToolPart = Extract<TToolPart, { state: "approval-responded" }>;
+/** What a conditional `chat_message` update expects a call to still be. */
+export type TToolCallState = Pick<TToolPart, "toolCallId" | "state">;
+/** Rewrites the history the model sees (e.g. inlining files); the stored history is unchanged. */
+export type TModelInputTransform = (messages: TChatMessage[]) => Promise<TChatMessage[]>;
+/** Called with each snapshot of the reply while an agent run streams it. */
+export type TReplySnapshotHandler = (snapshot: TChatMessage) => Promise<void>;

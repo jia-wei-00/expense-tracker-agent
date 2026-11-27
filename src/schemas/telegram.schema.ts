@@ -1,0 +1,80 @@
+import { z } from "zod";
+
+const chatSchema = z.looseObject({ id: z.number(), type: z.string() });
+
+const userSchema = z.looseObject({
+  id: z.number(),
+  is_bot: z.boolean(),
+  first_name: z.string(),
+  username: z.string().optional(),
+});
+
+export const telegramPhotoSizeSchema = z.looseObject({
+  file_id: z.string(),
+  width: z.number(),
+  height: z.number(),
+  file_size: z.number().optional(),
+});
+
+export const telegramMessageSchema = z.looseObject({
+  message_id: z.number(),
+  chat: chatSchema,
+  from: userSchema.optional(),
+  text: z.string().optional(),
+  caption: z.string().optional(),
+  photo: z.array(telegramPhotoSizeSchema).optional(),
+  document: z
+    .looseObject({
+      file_id: z.string(),
+      mime_type: z.string().optional(),
+      file_size: z.number().optional(),
+    })
+    .optional(),
+  voice: z.unknown().optional(),
+  video: z.unknown().optional(),
+  sticker: z.unknown().optional(),
+});
+
+export const telegramCallbackQuerySchema = z.looseObject({
+  id: z.string(),
+  from: userSchema,
+  data: z.string().optional(),
+  // `text` is the card as shown; absent when the message is no longer accessible.
+  message: z
+    .looseObject({ message_id: z.number(), chat: chatSchema, text: z.string().optional() })
+    .optional(),
+});
+
+export const telegramUpdateSchema = z.looseObject({
+  update_id: z.number(),
+  message: telegramMessageSchema.optional(),
+  callback_query: telegramCallbackQuerySchema.optional(),
+  my_chat_member: z
+    .looseObject({
+      chat: chatSchema,
+      new_chat_member: z.looseObject({ status: z.string() }),
+    })
+    .optional(),
+});
+
+export const updateKindSchema = z.enum(["start", "help", "new", "message", "callback", "ignore"]);
+
+export const telegramEnvelopeSchema = z.looseObject({
+  ok: z.boolean(),
+  description: z.string().optional(),
+  result: z.unknown().optional(),
+});
+
+export const telegramSentMessageSchema = z.looseObject({ message_id: z.number() });
+
+export const telegramFileSchema = z.looseObject({ file_path: z.string() });
+
+/** A row of the `TelegramInbox` SQLite `updates` table. */
+export const inboxRowSchema = z.object({
+  update_id: z.number(),
+  body: z.string(),
+  attempts: z.number(),
+});
+
+/** Just enough of an update to log which one failed validation. */
+export const updateIdSchema = z.looseObject({ update_id: z.number() });

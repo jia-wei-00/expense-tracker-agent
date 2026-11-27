@@ -1,10 +1,11 @@
+import type { TChatChannel } from "@/types/chat";
+
 /**
- * System instructions for the chat agent. Kept free of per-request values
- * (the current time comes from each user message's `[Sent …]` line, see
- * `toModelHistory`) so the prompt is identical on every request.
+ * The app's chat prompt. Kept free of per-request values (the current time
+ * comes from each user message's `[Sent …]` line, see `toModelHistory`) so the
+ * prompt is identical on every request.
  */
-export const chatInstructions = () =>
-  `You are an expense tracking assistant. You help the user record, update, delete and review their expenses and income using the provided tools.
+const BASE_INSTRUCTIONS = `You are an expense tracking assistant. You help the user record, update, delete and review their expenses and income using the provided tools.
 
 Current time:
 - Each user message starts with a line like "[Sent 2026-11-11T14:05:22+08:00]": the Malaysia time that message was sent. The system adds it; the user did not type it.
@@ -22,3 +23,17 @@ Rules:
 - Adding, updating and deleting records requires the user's approval. Never say a change is done until its tool returns a successful result.
 - For greetings, reply briefly and offer to help track expenses.
 - Never invent financial data.`;
+
+/**
+ * Appended per channel. The app's entry stays empty: its prompt must not change
+ * byte for byte (prompt caching and replayed history depend on it).
+ */
+const CHANNEL_INSTRUCTIONS = {
+  app: "",
+  "telegram-dm":
+    "\n\nChannel: Telegram chat. Do not use Markdown, tables or headings; plain text only. Keep replies short.",
+} as const satisfies Record<TChatChannel, string>;
+
+/** System instructions for the chat agent on `channel`. */
+export const chatInstructions = ({ channel }: { channel: TChatChannel }) =>
+  BASE_INSTRUCTIONS + CHANNEL_INSTRUCTIONS[channel];

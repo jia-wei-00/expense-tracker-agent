@@ -53,6 +53,15 @@ export const chatMetadataSchema = z.object({
       totalTokens: z.number().optional(),
     })
     .optional(),
+  /** The Telegram message a user turn came from (Telegram conversations only). */
+  telegram: z
+    .object({
+      chatId: z.number(),
+      messageId: z.number(),
+      fromId: z.number(),
+      fromName: z.string(),
+    })
+    .optional(),
 });
 
 /** `POST /ai/scan`: a receipt image to extract expenses from. */

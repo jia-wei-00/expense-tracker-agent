@@ -1,0 +1,46 @@
+import { TELEGRAM_COPY } from "@/constants/telegram";
+import { handleCallback } from "@/services/telegram/approval.service";
+import { linkTelegram } from "@/services/telegram/link.service";
+import { handleDmMessage } from "@/services/telegram/turn.service";
+import type { TTelegramDeps, TTelegramUpdate } from "@/types/telegram";
+import { chatIdOf, classifyUpdate } from "@/utils/telegram";
+
+/**
+ * Routes one update from a chat's inbox. A throw leaves the update in the inbox
+ * to be retried, so everything here must be safe to run again; `retry` says
+ * this is such a rerun.
+ */
+export async function handleUpdate(
+  deps: TTelegramDeps,
+  update: TTelegramUpdate,
+  { retry }: { retry: boolean },
+): Promise<void> {
+  const chatId = chatIdOf(update);
+  if (chatId === undefined) return;
+  const reply = (text: string) => deps.telegram.sendMessage({ chatId, text });
+
+  const kind = classifyUpdate(update);
+  switch (kind) {
+    case "start":
+      // "start" is only ever classified from a message.
+      if (update.message) await linkTelegram(deps, update.message);
+      return;
+    case "help":
+      await reply(TELEGRAM_COPY.help);
+      return;
+    case "message":
+    case "new":
+      // Both are only ever classified from a message.
+      if (update.message) {
+        await handleDmMessage(deps, update.message, { forceNew: kind === "new" });
+      }
+      return;
+    case "callback":
+      // "callback" is only ever classified from a callback query.
+      if (update.callback_query) await handleCallback(deps, update.callback_query, { retry });
+      return;
+    case "ignore":
+      return;
+  }
+  kind satisfies never;
+}

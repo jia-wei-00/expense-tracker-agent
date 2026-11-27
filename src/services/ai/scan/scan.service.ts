@@ -1,8 +1,8 @@
 import { scanResultSchema } from "@/schemas/ai";
 import { scanInstructions } from "@/services/ai/prompts/scan.prompt";
-import { getCategories } from "@/services/ai/tools/expense.tools";
 import type { TAiScan, TScanExpense } from "@/types/ai";
-import type { TContext } from "@/types/common";
+import type { TAppBindings } from "@/types/common";
+import type { TLedger } from "@/types/ledger";
 import { toMalaysiaLocalString, toSpendDate } from "@/utils/date";
 import { getModel } from "@/utils/model";
 import * as ai from "ai";
@@ -17,12 +17,12 @@ const { generateText } = wrapAISDK(ai);
  * Nothing is written.
  */
 export async function scanReceipt(
-  c: TContext,
+  { env, ledger }: { env: TAppBindings; ledger: TLedger },
   { url, mediaType }: TAiScan,
 ): Promise<TScanExpense[]> {
-  const categories = await getCategories(c);
+  const categories = await ledger.categories();
   const { output } = await generateText({
-    model: getModel({ c, provider: "gemini" }),
+    model: getModel({ env, provider: "gemini" }),
     output: Output.object({ schema: scanResultSchema }),
     system: scanInstructions({
       now: toMalaysiaLocalString(new Date()),

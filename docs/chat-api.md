@@ -66,7 +66,8 @@ pending call in the last assistant message must be answered in one request:
 The server executes approved calls with the **stored** arguments and streams the
 continuation of the same assistant message. A rejected call is stored as
 `state: "output-denied"`; sending a new message instead cancels the pending
-calls the same way.
+calls the same way. It also closes approved calls whose continuation failed
+before they ran (`approval-responded` with no output), as `output-denied`.
 
 **Errors** (`application/problem+json`, returned before streaming starts)
 

@@ -19,6 +19,12 @@
       "head_sampling_rate": 1,
     },
   },
+  // One inbox per Telegram chat: stores that chat's updates and processes them
+  // in order from an alarm (src/durable-objects/telegram-inbox.durable-object.ts).
+  "durable_objects": {
+    "bindings": [{ "name": "TELEGRAM_INBOX", "class_name": "TelegramInbox" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TelegramInbox"] }],
   "kv_namespaces": [
     {
       "binding": "CACHE",
@@ -51,5 +57,7 @@
     "FIREBASE_MESSAGING_SENDER_ID": "716340810052",
     "FIREBASE_APP_ID": "1:716340810052:web:66e59a75109531ba8e4711",
     "TEAM_DOMAIN": "https://leongjw98.cloudflareaccess.com",
+    // Telegram bot: no vars. Secrets TELEGRAM_BOT_TOKEN / TELEGRAM_WEBHOOK_SECRET
+    // are set with `wrangler secret put`; TELEGRAM_SKIP_IP_CHECK=true only in .dev.vars.
   },
 }
