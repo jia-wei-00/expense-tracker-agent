@@ -5,5 +5,5 @@ export default defineConfig({
   // Vite does not read tsconfig `paths`. Root-relative, so no node:path import
   // is needed (the repo has no Node types).
   resolve: { alias: [{ find: /^@\//, replacement: "/src/" }] },
-  test: { include: ["test/**/*.test.ts"] },
+  test: { include: ["__tests__/**/*.test.ts"] },
 });

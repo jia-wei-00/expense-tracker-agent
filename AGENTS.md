@@ -8,7 +8,7 @@ Cloudflare Workers API built with Hono + TypeScript. Package manager is Bun (`bu
 - `npm run deploy` — `wrangler deploy --minify`
 - `npm run cf-typegen` — regenerates root `worker-configuration.d.ts` exposing the `CloudflareBindings` interface. Run it after editing `wrangler.jsonc` bindings/vars.
 
-- `npm test` — `vitest run`. Unit tests live in `test/`, mirroring `src/` (`src/utils/telegram.ts` → `test/utils/telegram.test.ts`), and import the code under test via `@/`.
+- `npm test` — `vitest run`. Unit tests live in `__tests__/`, mirroring `src/` (`src/utils/telegram.ts` → `__tests__/utils/telegram.test.ts`), and import the code under test via `@/`.
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run lint` — ESLint (typescript-eslint `strictTypeChecked` + the repo rules in `eslint.config.js`).
 
